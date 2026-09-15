@@ -1,0 +1,158 @@
+import 'package:flutter_test/flutter_test.dart';
+
+import 'package:release_status/models/platform_status.dart';
+import 'package:release_status/monitoring/apply_monitoring_result.dart';
+import 'package:release_status/monitoring/monitoring_result.dart';
+import 'package:release_status/monitoring/platform_aliases.dart';
+import 'package:release_status/monitoring/title_identity.dart';
+import 'package:release_status/monitoring/title_matcher.dart';
+
+void main() {
+  group('platform aliases', () {
+    test('normalizes Amazon family names', () {
+      expect(PlatformAliases.canonicalId('Amazon'), 'amazon');
+      expect(PlatformAliases.canonicalId('Amazon Prime Video'), 'amazon');
+      expect(PlatformAliases.canonicalId('Prime Video'), 'amazon');
+      expect(
+        PlatformAliases.referToSameService('Amazon', 'Prime Video'),
+        isTrue,
+      );
+    });
+
+    test('normalizes Plex, Fawesome, Ofive+, and Relay', () {
+      expect(PlatformAliases.canonicalId('PLEX'), 'plex');
+      expect(PlatformAliases.canonicalId('Plex'), 'plex');
+      expect(PlatformAliases.canonicalId('Fawesome'), 'fawesome');
+      expect(
+        PlatformAliases.canonicalId('Future Today (Fawesome)'),
+        'fawesome',
+      );
+      expect(PlatformAliases.canonicalId('Ofive+'), 'ofive_plus');
+      expect(PlatformAliases.canonicalId('OFIVE+'), 'ofive_plus');
+      expect(PlatformAliases.canonicalId('Relay'), 'relay');
+    });
+
+    test('does not treat aliases as proof of availability', () {
+      expect(PlatformAliases.referToSameService('Relay', 'Amazon'), isFalse);
+    });
+  });
+
+  group('title matching', () {
+    const marked = TitleIdentity(
+      title: 'MARKED',
+      contentType: 'TV Series',
+      releaseYear: 2026,
+    );
+
+    test('requires name, type, and year for a verified match', () {
+      expect(
+        classifyTitleMatch(
+          query: marked,
+          candidate: const TitleCandidate(
+            name: 'MARKED',
+            year: 2026,
+            contentType: 'TV Series',
+            externalId: '1',
+          ),
+        ),
+        MatchConfidence.verifiedMatch,
+      );
+    });
+
+    test('name-only match is not verified', () {
+      expect(
+        classifyTitleMatch(
+          query: marked,
+          candidate: const TitleCandidate(
+            name: 'MARKED',
+            year: 2011,
+            contentType: 'TV Series',
+          ),
+        ),
+        MatchConfidence.possibleMatch,
+      );
+    });
+
+    test('wrong type is not a match', () {
+      expect(
+        classifyTitleMatch(
+          query: marked,
+          candidate: const TitleCandidate(
+            name: 'MARKED',
+            year: 2026,
+            contentType: 'Movie',
+          ),
+        ),
+        MatchConfidence.noMatch,
+      );
+    });
+
+    test('ambiguous verified candidates become possible matches', () {
+      expect(
+        classifySearchResults(
+          query: marked,
+          candidates: const [
+            TitleCandidate(
+              name: 'MARKED',
+              year: 2026,
+              contentType: 'TV Series',
+              externalId: '1',
+            ),
+            TitleCandidate(
+              name: 'MARKED',
+              year: 2026,
+              contentType: 'TV Series',
+              externalId: '2',
+            ),
+          ],
+        ),
+        MatchConfidence.possibleMatch,
+      );
+    });
+  });
+
+  group('applyMonitoringResult', () {
+    test('verified live carries evidence and changes WAITING to LIVE', () {
+      final updated = applyMonitoringResult(
+        PlatformStatus.waiting('Relay'),
+        MonitoringResult.verifiedLive(
+          platformName: 'Relay',
+          checkedAt: DateTime(2026, 9, 14, 18),
+          evidenceSource: 'TMDb Watch Providers',
+          evidenceUrl: 'https://example.invalid/relay/marked',
+        ),
+      );
+
+      expect(updated.status, DistributionStatus.live);
+      expect(updated.statusMessage, 'Verified availability');
+      expect(updated.evidenceSource, 'TMDb Watch Providers');
+      expect(updated.evidenceUrl, 'https://example.invalid/relay/marked');
+      expect(updated.hasAvailabilityEvidence, isTrue);
+    });
+
+    test('failed checks keep WAITING', () {
+      final updated = applyMonitoringResult(
+        PlatformStatus.waiting('Amazon'),
+        MonitoringResult.failed(
+          platformName: 'Amazon',
+          checkedAt: DateTime(2026, 9, 14, 18),
+          detail: 'Could not reach the availability source.',
+        ),
+      );
+
+      expect(updated.status, DistributionStatus.waiting);
+      expect(updated.statusMessage, 'Check failed');
+      expect(updated.lastCheckFailed, isTrue);
+    });
+
+    test('unchecked platforms have no fake detection data', () {
+      final platform = PlatformStatus.waiting('Relay');
+      expect(platform.status, DistributionStatus.waiting);
+      expect(platform.hasBeenDetected, isFalse);
+      expect(platform.hasRealLookup, isFalse);
+      expect(platform.evidenceSource, isNull);
+      expect(platform.evidenceUrl, isNull);
+      expect(platform.firstDetectedLabel, isNull);
+    });
+  });
+}

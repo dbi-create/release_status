@@ -1,18 +1,27 @@
 import 'package:flutter/material.dart';
 
 import 'package:release_status/models/release_title.dart';
+import 'package:release_status/monitoring/availability_monitor.dart';
+import 'package:release_status/monitoring/monitoring_result.dart';
 import 'package:release_status/screens/title_form_screen.dart';
 import 'package:release_status/state/title_catalog.dart';
 import 'package:release_status/widgets/platform_status_row.dart';
 
-class TitleDetailScreen extends StatelessWidget {
+class TitleDetailScreen extends StatefulWidget {
   const TitleDetailScreen({super.key, required this.titleId});
 
   final String titleId;
 
   @override
+  State<TitleDetailScreen> createState() => _TitleDetailScreenState();
+}
+
+class _TitleDetailScreenState extends State<TitleDetailScreen> {
+  bool _checking = false;
+
+  @override
   Widget build(BuildContext context) {
-    final title = TitleCatalogScope.of(context).titleById(titleId);
+    final title = TitleCatalogScope.of(context).titleById(widget.titleId);
     if (title == null) {
       return Scaffold(
         backgroundColor: Theme.of(context).colorScheme.surfaceContainerLowest,
@@ -23,11 +32,15 @@ class TitleDetailScreen extends StatelessWidget {
       );
     }
 
+    final monitor = AvailabilityMonitorScope.of(context);
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
     final isCompact = MediaQuery.sizeOf(context).width < 720;
-    final hasCheckedPlatform = title.platforms.any(
-      (platform) => platform.hasBeenChecked,
+    final hasRealLookup = title.platforms.any(
+      (platform) => platform.hasRealLookup,
+    );
+    final hasDemoCheck = title.platforms.any(
+      (platform) => platform.hasBeenChecked && !platform.hasRealLookup,
     );
 
     return Scaffold(
@@ -82,19 +95,57 @@ class TitleDetailScreen extends StatelessWidget {
             Wrap(
               spacing: 8,
               runSpacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
+                FilledButton(
+                  key: const ValueKey<String>('check-status-button'),
+                  onPressed: _checking ? null : () => _checkStatus(title),
+                  child: Text(_checking ? 'Checking…' : 'Check Status'),
+                ),
                 FilledButton.tonal(
                   key: const ValueKey<String>('edit-title-button'),
-                  onPressed: () => _openEdit(context, title),
+                  onPressed: _checking ? null : () => _openEdit(title),
                   child: const Text('Edit Title'),
                 ),
                 TextButton(
                   key: const ValueKey<String>('delete-title-button'),
-                  onPressed: () => _confirmDelete(context, title),
+                  onPressed: _checking
+                      ? null
+                      : () => _confirmDelete(context, title),
                   child: const Text('Delete Title'),
                 ),
               ],
             ),
+            if (_checking) ...[
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    key: const ValueKey<String>('checking-status-indicator'),
+                    'Checking public availability…',
+                    style: textTheme.bodyMedium?.copyWith(
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+            if (!monitor.isConfigured) ...[
+              const SizedBox(height: 16),
+              Text(
+                'Real availability checks are not configured yet. Check Status will not contact an external source.',
+                style: textTheme.bodySmall?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                  height: 1.4,
+                ),
+              ),
+            ],
             const SizedBox(height: 24),
             _OverallStatusPanel(title: title),
             const SizedBox(height: 32),
@@ -118,9 +169,10 @@ class TitleDetailScreen extends StatelessWidget {
             ],
             const SizedBox(height: 12),
             Text(
-              hasCheckedPlatform
-                  ? 'Last Checked values are local demonstration data and are not the result of a network scan.'
-                  : 'Monitoring has not started for this title. No availability check has occurred.',
+              _footerText(
+                hasRealLookup: hasRealLookup,
+                hasDemoCheck: hasDemoCheck,
+              ),
               style: textTheme.bodySmall?.copyWith(
                 color: colorScheme.onSurfaceVariant,
                 height: 1.4,
@@ -132,7 +184,39 @@ class TitleDetailScreen extends StatelessWidget {
     );
   }
 
-  void _openEdit(BuildContext context, ReleaseTitle title) {
+  Future<void> _checkStatus(ReleaseTitle title) async {
+    if (_checking) {
+      return;
+    }
+    setState(() {
+      _checking = true;
+    });
+    final monitor = AvailabilityMonitorScope.of(context);
+    final catalog = TitleCatalogScope.of(context);
+    final results = <MonitoringResult>[];
+    try {
+      for (final platform in title.platforms) {
+        results.add(
+          await monitor.check(
+            title: title.identity,
+            licensedPlatform: platform.platformName,
+          ),
+        );
+      }
+      if (!mounted) {
+        return;
+      }
+      catalog.applyMonitoringResults(title.id, results);
+    } finally {
+      if (mounted) {
+        setState(() {
+          _checking = false;
+        });
+      }
+    }
+  }
+
+  void _openEdit(ReleaseTitle title) {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (context) => TitleFormScreen(existingTitle: title),
@@ -171,6 +255,16 @@ class TitleDetailScreen extends StatelessWidget {
     Navigator.of(context).pop();
     catalog.removeTitle(title.id);
   }
+}
+
+String _footerText({required bool hasRealLookup, required bool hasDemoCheck}) {
+  if (hasRealLookup) {
+    return 'Last checked times are from availability lookups in this session. They are not a continuous monitor.';
+  }
+  if (hasDemoCheck) {
+    return 'Last Checked values are local demonstration data and are not the result of a network scan.';
+  }
+  return 'Monitoring has not started for this title. No availability check has occurred.';
 }
 
 class _DetailMonogram extends StatelessWidget {

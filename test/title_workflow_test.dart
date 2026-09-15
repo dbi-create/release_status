@@ -190,13 +190,15 @@ void main() {
   ) async {
     await _pumpApp(tester);
 
-    final viewStatus = find.byKey(const ValueKey<String>('view-status-marked'));
+    final viewStatus = find.byKey(
+      const ValueKey<String>('view-status-ashen-field'),
+    );
     await tester.ensureVisible(viewStatus);
     await tester.tap(viewStatus);
     await tester.pumpAndSettle();
 
     expect(find.text('LIVE'), findsWidgets);
-    expect(find.text('3 of 5 platforms live'), findsWidgets);
+    expect(find.text('1 of 3 platforms live'), findsWidgets);
 
     await tester.tap(find.byKey(const ValueKey<String>('edit-title-button')));
     await tester.pumpAndSettle();
@@ -209,7 +211,7 @@ void main() {
     await tester.tap(find.byKey(const ValueKey<String>('save-title-button')));
     await tester.pumpAndSettle();
 
-    expect(find.text('3 of 6 platforms live'), findsWidgets);
+    expect(find.text('1 of 4 platforms live'), findsWidgets);
     expect(find.text('Platform One'), findsOneWidget);
     expect(find.text('Channel Zeta'), findsOneWidget);
     expect(find.text('LIVE'), findsWidgets);

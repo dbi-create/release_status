@@ -13,38 +13,15 @@ const List<ReleaseTitle> demoTitles = [
   ReleaseTitle(
     id: 'marked',
     name: 'MARKED',
-    releaseYear: 2024,
-    contentType: 'Movie',
+    releaseYear: 2026,
+    contentType: 'TV Series',
     placeholderColor: Color(0xFF3A4A63),
     platforms: [
-      PlatformStatus(
-        platformName: 'Platform One',
-        status: DistributionStatus.live,
-        firstDetectedLabel: 'Jan 18, 2026',
-        lastCheckedLabel: demoLastCheckedLabel,
-      ),
-      PlatformStatus(
-        platformName: 'Platform Two',
-        status: DistributionStatus.live,
-        firstDetectedLabel: 'Mar 4, 2026',
-        lastCheckedLabel: demoLastCheckedLabel,
-      ),
-      PlatformStatus(
-        platformName: 'Platform Three',
-        status: DistributionStatus.waiting,
-        lastCheckedLabel: demoLastCheckedLabel,
-      ),
-      PlatformStatus(
-        platformName: 'Platform Four',
-        status: DistributionStatus.live,
-        firstDetectedLabel: 'Jun 21, 2026',
-        lastCheckedLabel: demoLastCheckedLabel,
-      ),
-      PlatformStatus(
-        platformName: 'Platform Five',
-        status: DistributionStatus.waiting,
-        lastCheckedLabel: demoLastCheckedLabel,
-      ),
+      PlatformStatus.waiting('Amazon'),
+      PlatformStatus.waiting('PLEX'),
+      PlatformStatus.waiting('Fawesome'),
+      PlatformStatus.waiting('Ofive+'),
+      PlatformStatus.waiting('Relay'),
     ],
   ),
   ReleaseTitle(

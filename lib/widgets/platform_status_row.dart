@@ -16,8 +16,7 @@ class PlatformStatusRow extends StatelessWidget {
     return Semantics(
       label:
           '${platform.platformName}, ${platform.statusLabel}. '
-          '${platform.hasBeenDetected ? 'First detected ${platform.firstDetectedLabel}' : 'Not yet detected'}. '
-          '${platform.hasBeenChecked ? 'Last checked, local demo data, ${platform.lastCheckedLabel}.' : 'Monitoring has not started. No check has occurred.'}',
+          '${_statusLine(platform)}. ${_checkedLine(platform)}.',
       child: DecoratedBox(
         decoration: BoxDecoration(
           color: colorScheme.surface,
@@ -51,22 +50,47 @@ class PlatformStatusRow extends StatelessWidget {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      platform.hasBeenDetected
-                          ? 'First Detected  ${platform.firstDetectedLabel}'
-                          : 'Not yet detected',
+                      _statusLine(platform),
                       style: textTheme.bodyMedium?.copyWith(
                         color: colorScheme.onSurfaceVariant,
                       ),
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      platform.hasBeenChecked
-                          ? 'Last Checked (local demo data)  ${platform.lastCheckedLabel}'
-                          : 'Monitoring has not started',
+                      _checkedLine(platform),
                       style: textTheme.bodySmall?.copyWith(
                         color: colorScheme.onSurfaceVariant,
                       ),
                     ),
+                    if (platform.evidenceSource != null) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        'Evidence  ${platform.evidenceSource}',
+                        style: textTheme.bodySmall?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                    if (platform.evidenceUrl != null) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        platform.evidenceUrl!,
+                        style: textTheme.bodySmall?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                    if (platform.statusDetail != null &&
+                        platform.statusDetail != platform.statusMessage) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        platform.statusDetail!,
+                        style: textTheme.bodySmall?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                          height: 1.35,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -76,6 +100,26 @@ class PlatformStatusRow extends StatelessWidget {
       ),
     );
   }
+}
+
+String _statusLine(PlatformStatus platform) {
+  if (platform.statusMessage != null && platform.statusMessage!.isNotEmpty) {
+    return platform.statusMessage!;
+  }
+  if (platform.hasBeenDetected) {
+    return 'First Detected  ${platform.firstDetectedLabel}';
+  }
+  return 'Not yet detected';
+}
+
+String _checkedLine(PlatformStatus platform) {
+  if (platform.hasRealLookup) {
+    return 'Last checked  ${platform.lastCheckedLabel}';
+  }
+  if (platform.lastCheckedLabel != null) {
+    return 'Last Checked (local demo data)  ${platform.lastCheckedLabel}';
+  }
+  return 'Monitoring has not started';
 }
 
 class _StatusBadge extends StatelessWidget {

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:release_status/app.dart';
+import 'package:release_status/screens/title_detail_screen.dart';
 
 void main() {
   testWidgets('dashboard shows personal branding and MARKED', (tester) async {
@@ -15,7 +16,7 @@ void main() {
     expect(find.text('Your Releases'), findsOneWidget);
     expect(find.text('MARKED'), findsOneWidget);
     expect(find.text('5 licensed platforms'), findsOneWidget);
-    expect(find.text('3 live  ·  2 waiting'), findsOneWidget);
+    expect(find.text('5 waiting'), findsOneWidget);
     expect(find.text('TOTAL TITLES'), findsOneWidget);
     expect(find.text('LIVE PLATFORMS'), findsOneWidget);
     expect(find.text('WAITING'), findsOneWidget);
@@ -71,16 +72,23 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Platform Status'), findsOneWidget);
-    expect(find.text('3 of 5 platforms live'), findsWidgets);
-    expect(find.text('Platform One'), findsOneWidget);
-    expect(find.text('Platform Two'), findsOneWidget);
-    expect(find.text('Platform Three'), findsOneWidget);
-    expect(find.text('Platform Four'), findsOneWidget);
-    expect(find.text('Platform Five'), findsOneWidget);
-    expect(find.text('LIVE'), findsWidgets);
+    expect(find.text('Check Status'), findsOneWidget);
+    expect(find.text('0 of 5 platforms live'), findsWidgets);
+    expect(find.text('Amazon'), findsOneWidget);
+    expect(find.text('PLEX'), findsOneWidget);
+    expect(find.text('Fawesome'), findsOneWidget);
+    expect(find.text('Ofive+'), findsOneWidget);
+    expect(find.text('Relay'), findsOneWidget);
     expect(find.text('WAITING'), findsWidgets);
     expect(find.text('Not yet detected'), findsWidgets);
-    expect(find.textContaining('Last Checked (local demo data)'), findsWidgets);
+    expect(find.text('Monitoring has not started'), findsWidgets);
+    expect(
+      find.descendant(
+        of: find.byType(TitleDetailScreen),
+        matching: find.text('LIVE'),
+      ),
+      findsNothing,
+    );
   });
 
   testWidgets('wide layout keeps the desktop sidebar', (tester) async {

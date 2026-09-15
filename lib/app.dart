@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import 'package:release_status/models/release_title.dart';
+import 'package:release_status/monitoring/availability_monitor.dart';
+import 'package:release_status/monitoring/production_monitor.dart';
 import 'package:release_status/screens/dashboard_screen.dart';
 import 'package:release_status/screens/title_detail_screen.dart';
 import 'package:release_status/screens/title_form_screen.dart';
@@ -19,7 +21,9 @@ const Color _accent = Color(0xFF4A7FB5);
 const double _wideLayoutBreakpoint = 960;
 
 class ReleaseStatusApp extends StatefulWidget {
-  const ReleaseStatusApp({super.key});
+  const ReleaseStatusApp({super.key, this.availabilityMonitor});
+
+  final AvailabilityMonitor? availabilityMonitor;
 
   @override
   State<ReleaseStatusApp> createState() => _ReleaseStatusAppState();
@@ -27,6 +31,8 @@ class ReleaseStatusApp extends StatefulWidget {
 
 class _ReleaseStatusAppState extends State<ReleaseStatusApp> {
   late final TitleCatalog _catalog = TitleCatalog();
+  late final AvailabilityMonitor _monitor =
+      widget.availabilityMonitor ?? createProductionAvailabilityMonitor();
 
   @override
   void dispose() {
@@ -51,71 +57,77 @@ class _ReleaseStatusAppState extends State<ReleaseStatusApp> {
       error: Color(0xFFE05555),
     );
 
-    return TitleCatalogScope(
-      catalog: _catalog,
-      child: MaterialApp(
-        title: 'ReleaseStatus',
-        debugShowCheckedModeBanner: false,
-        theme: ThemeData(
-          useMaterial3: true,
-          brightness: Brightness.dark,
-          colorScheme: colorScheme,
-          scaffoldBackgroundColor: _background,
-          textTheme: ThemeData(brightness: Brightness.dark).textTheme.apply(
-            bodyColor: _primaryText,
-            displayColor: _primaryText,
-          ),
-          appBarTheme: const AppBarTheme(
-            backgroundColor: _background,
-            foregroundColor: _primaryText,
-            elevation: 0,
-            scrolledUnderElevation: 0,
-          ),
-          navigationBarTheme: NavigationBarThemeData(
-            backgroundColor: _surface,
-            indicatorColor: _surfaceHighest,
-            elevation: 0,
-            labelTextStyle: WidgetStateProperty.resolveWith((states) {
-              final selected = states.contains(WidgetState.selected);
-              return TextStyle(
-                fontSize: 12,
-                fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
-                color: selected ? _primaryText : _secondaryText,
-              );
-            }),
-          ),
-          filledButtonTheme: FilledButtonThemeData(
-            style: FilledButton.styleFrom(
-              backgroundColor: _accent,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(6),
+    return AvailabilityMonitorScope(
+      monitor: _monitor,
+      child: TitleCatalogScope(
+        catalog: _catalog,
+        child: MaterialApp(
+          title: 'ReleaseStatus',
+          debugShowCheckedModeBanner: false,
+          theme: ThemeData(
+            useMaterial3: true,
+            brightness: Brightness.dark,
+            colorScheme: colorScheme,
+            scaffoldBackgroundColor: _background,
+            textTheme: ThemeData(brightness: Brightness.dark).textTheme.apply(
+              bodyColor: _primaryText,
+              displayColor: _primaryText,
+            ),
+            appBarTheme: const AppBarTheme(
+              backgroundColor: _background,
+              foregroundColor: _primaryText,
+              elevation: 0,
+              scrolledUnderElevation: 0,
+            ),
+            navigationBarTheme: NavigationBarThemeData(
+              backgroundColor: _surface,
+              indicatorColor: _surfaceHighest,
+              elevation: 0,
+              labelTextStyle: WidgetStateProperty.resolveWith((states) {
+                final selected = states.contains(WidgetState.selected);
+                return TextStyle(
+                  fontSize: 12,
+                  fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+                  color: selected ? _primaryText : _secondaryText,
+                );
+              }),
+            ),
+            filledButtonTheme: FilledButtonThemeData(
+              style: FilledButton.styleFrom(
+                backgroundColor: _accent,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(6),
+                ),
               ),
             ),
+            inputDecorationTheme: InputDecorationTheme(
+              filled: true,
+              fillColor: _surface,
+              hintStyle: const TextStyle(color: _secondaryText),
+              labelStyle: const TextStyle(color: _secondaryText),
+              helperStyle: const TextStyle(color: _secondaryText),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(6),
+                borderSide: const BorderSide(color: _outline),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(6),
+                borderSide: const BorderSide(color: _outline),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(6),
+                borderSide: const BorderSide(color: _accent, width: 1.4),
+              ),
+            ),
+            dialogTheme: const DialogThemeData(backgroundColor: _surface),
           ),
-          inputDecorationTheme: InputDecorationTheme(
-            filled: true,
-            fillColor: _surface,
-            hintStyle: const TextStyle(color: _secondaryText),
-            labelStyle: const TextStyle(color: _secondaryText),
-            helperStyle: const TextStyle(color: _secondaryText),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(6),
-              borderSide: const BorderSide(color: _outline),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(6),
-              borderSide: const BorderSide(color: _outline),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(6),
-              borderSide: const BorderSide(color: _accent, width: 1.4),
-            ),
-          ),
-          dialogTheme: const DialogThemeData(backgroundColor: _surface),
+          home: const AppShell(),
         ),
-        home: const AppShell(),
       ),
     );
   }

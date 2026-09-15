@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:release_status/data/demo_data.dart';
 import 'package:release_status/models/platform_status.dart';
 import 'package:release_status/models/release_title.dart';
+import 'package:release_status/monitoring/apply_monitoring_result.dart';
+import 'package:release_status/monitoring/monitoring_result.dart';
 
 const List<Color> _placeholderColors = [
   Color(0xFF3A4A63),
@@ -75,6 +77,30 @@ class TitleCatalog extends ChangeNotifier {
   void removeTitle(String id) {
     _titles.removeWhere((title) => title.id == id);
     notifyListeners();
+  }
+
+  void applyMonitoringResults(String titleId, List<MonitoringResult> results) {
+    final title = titleById(titleId);
+    if (title == null) {
+      return;
+    }
+    final byPlatform = <String, MonitoringResult>{
+      for (final result in results) result.platformName: result,
+    };
+    updateTitle(
+      title.copyWith(
+        platforms: [
+          for (final platform in title.platforms)
+            if (byPlatform.containsKey(platform.platformName))
+              applyMonitoringResult(
+                platform,
+                byPlatform[platform.platformName]!,
+              )
+            else
+              platform,
+        ],
+      ),
+    );
   }
 }
 

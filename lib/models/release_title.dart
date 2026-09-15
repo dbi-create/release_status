@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:release_status/models/platform_status.dart';
+import 'package:release_status/monitoring/title_identity.dart';
 
 class ReleaseTitle {
   const ReleaseTitle({
@@ -10,6 +11,9 @@ class ReleaseTitle {
     required this.contentType,
     required this.placeholderColor,
     required this.platforms,
+    this.imdbId,
+    this.tmdbId,
+    this.availabilityProviderId,
   });
 
   final String id;
@@ -18,6 +22,18 @@ class ReleaseTitle {
   final String contentType;
   final Color placeholderColor;
   final List<PlatformStatus> platforms;
+  final String? imdbId;
+  final String? tmdbId;
+  final String? availabilityProviderId;
+
+  TitleIdentity get identity => TitleIdentity(
+    title: name,
+    contentType: contentType,
+    releaseYear: releaseYear,
+    imdbId: imdbId,
+    tmdbId: tmdbId,
+    availabilityProviderId: availabilityProviderId,
+  );
 
   int get licensedPlatformCount => platforms.length;
 
@@ -56,6 +72,9 @@ class ReleaseTitle {
     String? contentType,
     Color? placeholderColor,
     List<PlatformStatus>? platforms,
+    String? imdbId,
+    String? tmdbId,
+    String? availabilityProviderId,
   }) {
     return ReleaseTitle(
       id: id,
@@ -64,6 +83,10 @@ class ReleaseTitle {
       contentType: contentType ?? this.contentType,
       placeholderColor: placeholderColor ?? this.placeholderColor,
       platforms: platforms ?? this.platforms,
+      imdbId: imdbId ?? this.imdbId,
+      tmdbId: tmdbId ?? this.tmdbId,
+      availabilityProviderId:
+          availabilityProviderId ?? this.availabilityProviderId,
     );
   }
 }
