@@ -49,4 +49,21 @@ class ReleaseTitle {
     }
     return parts.take(2).map((part) => part[0].toUpperCase()).join();
   }
+
+  ReleaseTitle copyWith({
+    String? name,
+    int? releaseYear,
+    String? contentType,
+    Color? placeholderColor,
+    List<PlatformStatus>? platforms,
+  }) {
+    return ReleaseTitle(
+      id: id,
+      name: name ?? this.name,
+      releaseYear: releaseYear ?? this.releaseYear,
+      contentType: contentType ?? this.contentType,
+      placeholderColor: placeholderColor ?? this.placeholderColor,
+      platforms: platforms ?? this.platforms,
+    );
+  }
 }

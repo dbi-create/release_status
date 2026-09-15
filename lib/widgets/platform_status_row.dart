@@ -17,7 +17,7 @@ class PlatformStatusRow extends StatelessWidget {
       label:
           '${platform.platformName}, ${platform.statusLabel}. '
           '${platform.hasBeenDetected ? 'First detected ${platform.firstDetectedLabel}' : 'Not yet detected'}. '
-          'Last checked, local demo data, ${platform.lastCheckedLabel}.',
+          '${platform.hasBeenChecked ? 'Last checked, local demo data, ${platform.lastCheckedLabel}.' : 'Monitoring has not started. No check has occurred.'}',
       child: DecoratedBox(
         decoration: BoxDecoration(
           color: colorScheme.surface,
@@ -60,7 +60,9 @@ class PlatformStatusRow extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Last Checked (local demo data)  ${platform.lastCheckedLabel}',
+                      platform.hasBeenChecked
+                          ? 'Last Checked (local demo data)  ${platform.lastCheckedLabel}'
+                          : 'Monitoring has not started',
                       style: textTheme.bodySmall?.copyWith(
                         color: colorScheme.onSurfaceVariant,
                       ),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:release_status/data/demo_data.dart';
 import 'package:release_status/models/release_title.dart';
+import 'package:release_status/state/title_catalog.dart';
 import 'package:release_status/widgets/platform_status_row.dart';
 import 'package:release_status/widgets/summary_card.dart';
 import 'package:release_status/widgets/title_card.dart';
@@ -18,6 +19,8 @@ class DashboardScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final catalog = TitleCatalogScope.of(context);
+    final titles = catalog.titles;
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
     final isCompact = MediaQuery.sizeOf(context).width < 720;
@@ -74,7 +77,7 @@ class DashboardScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 16),
-            _SummaryGrid(isCompact: isCompact),
+            _SummaryGrid(catalog: catalog, isCompact: isCompact),
             const SizedBox(height: 32),
             Text(
               'Your Titles',
@@ -90,13 +93,13 @@ class DashboardScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 16),
-            for (final title in demoTitles) ...[
+            for (final title in titles) ...[
               TitleCard(title: title, onViewStatus: () => onOpenTitle(title)),
               const SizedBox(height: 12),
             ],
             const SizedBox(height: 8),
             Text(
-              'Local Prototype  ·  Demonstration data only',
+              'Local Prototype  ·  In-memory session data',
               style: textTheme.bodySmall?.copyWith(
                 color: colorScheme.onSurfaceVariant,
               ),
@@ -109,8 +112,9 @@ class DashboardScreen extends StatelessWidget {
 }
 
 class _SummaryGrid extends StatelessWidget {
-  const _SummaryGrid({required this.isCompact});
+  const _SummaryGrid({required this.catalog, required this.isCompact});
 
+  final TitleCatalog catalog;
   final bool isCompact;
 
   @override
@@ -118,18 +122,18 @@ class _SummaryGrid extends StatelessWidget {
     final cards = [
       SummaryCard(
         label: 'TOTAL TITLES',
-        value: '$demoTotalTitleCount',
-        caption: 'Local demonstration catalog',
+        value: '${catalog.totalTitleCount}',
+        caption: 'Titles you own or control',
       ),
       SummaryCard(
         label: 'LIVE PLATFORMS',
-        value: '$demoLivePlatformCount',
+        value: '${catalog.livePlatformCount}',
         caption: 'Across your licensed platforms',
         accentColor: StatusVisuals.live.color,
       ),
       SummaryCard(
         label: 'WAITING',
-        value: '$demoWaitingPlatformCount',
+        value: '${catalog.waitingPlatformCount}',
         caption: 'Licensed, not yet detected',
         accentColor: StatusVisuals.waiting.color,
       ),

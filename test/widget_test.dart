@@ -26,18 +26,20 @@ void main() {
     );
   });
 
-  testWidgets('Add Title explains that setup is not implemented', (
-    tester,
-  ) async {
+  testWidgets('Add Title can be opened', (tester) async {
     await tester.pumpWidget(const ReleaseStatusApp());
 
     await tester.tap(find.byKey(const ValueKey<String>('add-title-button')));
     await tester.pumpAndSettle();
 
+    expect(find.text('Add Your Title'), findsOneWidget);
     expect(
-      find.text('Title setup will be added in a later milestone.'),
+      find.text(
+        'Add a movie or TV show you own, produce, distribute, or control.',
+      ),
       findsOneWidget,
     );
+    expect(find.text('Licensed Platforms'), findsOneWidget);
   });
 
   testWidgets('My Titles navigation shows the private catalog', (tester) async {

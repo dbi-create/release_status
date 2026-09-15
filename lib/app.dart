@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:release_status/models/release_title.dart';
 import 'package:release_status/screens/dashboard_screen.dart';
 import 'package:release_status/screens/title_detail_screen.dart';
+import 'package:release_status/screens/title_form_screen.dart';
 import 'package:release_status/screens/titles_screen.dart';
+import 'package:release_status/state/title_catalog.dart';
 import 'package:release_status/widgets/app_sidebar.dart';
 
 const Color _background = Color(0xFF101214);
@@ -16,8 +18,21 @@ const Color _accent = Color(0xFF4A7FB5);
 
 const double _wideLayoutBreakpoint = 960;
 
-class ReleaseStatusApp extends StatelessWidget {
+class ReleaseStatusApp extends StatefulWidget {
   const ReleaseStatusApp({super.key});
+
+  @override
+  State<ReleaseStatusApp> createState() => _ReleaseStatusAppState();
+}
+
+class _ReleaseStatusAppState extends State<ReleaseStatusApp> {
+  late final TitleCatalog _catalog = TitleCatalog();
+
+  @override
+  void dispose() {
+    _catalog.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -36,49 +51,72 @@ class ReleaseStatusApp extends StatelessWidget {
       error: Color(0xFFE05555),
     );
 
-    return MaterialApp(
-      title: 'ReleaseStatus',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        useMaterial3: true,
-        brightness: Brightness.dark,
-        colorScheme: colorScheme,
-        scaffoldBackgroundColor: _background,
-        textTheme: ThemeData(
+    return TitleCatalogScope(
+      catalog: _catalog,
+      child: MaterialApp(
+        title: 'ReleaseStatus',
+        debugShowCheckedModeBanner: false,
+        theme: ThemeData(
+          useMaterial3: true,
           brightness: Brightness.dark,
-        ).textTheme.apply(bodyColor: _primaryText, displayColor: _primaryText),
-        appBarTheme: const AppBarTheme(
-          backgroundColor: _background,
-          foregroundColor: _primaryText,
-          elevation: 0,
-          scrolledUnderElevation: 0,
-        ),
-        navigationBarTheme: NavigationBarThemeData(
-          backgroundColor: _surface,
-          indicatorColor: _surfaceHighest,
-          elevation: 0,
-          labelTextStyle: WidgetStateProperty.resolveWith((states) {
-            final selected = states.contains(WidgetState.selected);
-            return TextStyle(
-              fontSize: 12,
-              fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
-              color: selected ? _primaryText : _secondaryText,
-            );
-          }),
-        ),
-        filledButtonTheme: FilledButtonThemeData(
-          style: FilledButton.styleFrom(
-            backgroundColor: _accent,
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(6),
+          colorScheme: colorScheme,
+          scaffoldBackgroundColor: _background,
+          textTheme: ThemeData(brightness: Brightness.dark).textTheme.apply(
+            bodyColor: _primaryText,
+            displayColor: _primaryText,
+          ),
+          appBarTheme: const AppBarTheme(
+            backgroundColor: _background,
+            foregroundColor: _primaryText,
+            elevation: 0,
+            scrolledUnderElevation: 0,
+          ),
+          navigationBarTheme: NavigationBarThemeData(
+            backgroundColor: _surface,
+            indicatorColor: _surfaceHighest,
+            elevation: 0,
+            labelTextStyle: WidgetStateProperty.resolveWith((states) {
+              final selected = states.contains(WidgetState.selected);
+              return TextStyle(
+                fontSize: 12,
+                fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+                color: selected ? _primaryText : _secondaryText,
+              );
+            }),
+          ),
+          filledButtonTheme: FilledButtonThemeData(
+            style: FilledButton.styleFrom(
+              backgroundColor: _accent,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(6),
+              ),
             ),
           ),
+          inputDecorationTheme: InputDecorationTheme(
+            filled: true,
+            fillColor: _surface,
+            hintStyle: const TextStyle(color: _secondaryText),
+            labelStyle: const TextStyle(color: _secondaryText),
+            helperStyle: const TextStyle(color: _secondaryText),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(6),
+              borderSide: const BorderSide(color: _outline),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(6),
+              borderSide: const BorderSide(color: _outline),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(6),
+              borderSide: const BorderSide(color: _accent, width: 1.4),
+            ),
+          ),
+          dialogTheme: const DialogThemeData(backgroundColor: _surface),
         ),
-        dialogTheme: const DialogThemeData(backgroundColor: _surface),
+        home: const AppShell(),
       ),
-      home: const AppShell(),
     );
   }
 }
@@ -114,12 +152,12 @@ class _AppShellState extends State<AppShell> {
             if (_selectedIndex == 0) {
               return DashboardScreen(
                 onOpenTitle: (title) => _openTitle(context, title),
-                onAddTitle: () => showDeferredAddTitleDialog(context),
+                onAddTitle: () => _openAddTitle(context),
               );
             }
             return TitlesScreen(
               onOpenTitle: (title) => _openTitle(context, title),
-              onAddTitle: () => showDeferredAddTitleDialog(context),
+              onAddTitle: () => _openAddTitle(context),
             );
           },
         );
@@ -170,26 +208,14 @@ class _AppShellState extends State<AppShell> {
   void _openTitle(BuildContext context, ReleaseTitle title) {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (context) => TitleDetailScreen(title: title),
+        builder: (context) => TitleDetailScreen(titleId: title.id),
       ),
     );
   }
-}
 
-Future<void> showDeferredAddTitleDialog(BuildContext context) {
-  return showDialog<void>(
-    context: context,
-    builder: (context) {
-      return AlertDialog(
-        title: const Text('Add Title'),
-        content: const Text('Title setup will be added in a later milestone.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('OK'),
-          ),
-        ],
-      );
-    },
-  );
+  void _openAddTitle(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (context) => const TitleFormScreen()),
+    );
+  }
 }

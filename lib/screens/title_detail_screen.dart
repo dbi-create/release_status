@@ -1,18 +1,34 @@
 import 'package:flutter/material.dart';
 
 import 'package:release_status/models/release_title.dart';
+import 'package:release_status/screens/title_form_screen.dart';
+import 'package:release_status/state/title_catalog.dart';
 import 'package:release_status/widgets/platform_status_row.dart';
 
 class TitleDetailScreen extends StatelessWidget {
-  const TitleDetailScreen({super.key, required this.title});
+  const TitleDetailScreen({super.key, required this.titleId});
 
-  final ReleaseTitle title;
+  final String titleId;
 
   @override
   Widget build(BuildContext context) {
+    final title = TitleCatalogScope.of(context).titleById(titleId);
+    if (title == null) {
+      return Scaffold(
+        backgroundColor: Theme.of(context).colorScheme.surfaceContainerLowest,
+        appBar: AppBar(title: const Text('Title')),
+        body: const Center(
+          child: Text('This title is no longer in this session.'),
+        ),
+      );
+    }
+
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
     final isCompact = MediaQuery.sizeOf(context).width < 720;
+    final hasCheckedPlatform = title.platforms.any(
+      (platform) => platform.hasBeenChecked,
+    );
 
     return Scaffold(
       backgroundColor: colorScheme.surfaceContainerLowest,
@@ -62,6 +78,23 @@ class TitleDetailScreen extends StatelessWidget {
                 ),
               ],
             ),
+            const SizedBox(height: 20),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                FilledButton.tonal(
+                  key: const ValueKey<String>('edit-title-button'),
+                  onPressed: () => _openEdit(context, title),
+                  child: const Text('Edit Title'),
+                ),
+                TextButton(
+                  key: const ValueKey<String>('delete-title-button'),
+                  onPressed: () => _confirmDelete(context, title),
+                  child: const Text('Delete Title'),
+                ),
+              ],
+            ),
             const SizedBox(height: 24),
             _OverallStatusPanel(title: title),
             const SizedBox(height: 32),
@@ -85,7 +118,9 @@ class TitleDetailScreen extends StatelessWidget {
             ],
             const SizedBox(height: 12),
             Text(
-              'Last Checked values are local demonstration data and are not the result of a network scan.',
+              hasCheckedPlatform
+                  ? 'Last Checked values are local demonstration data and are not the result of a network scan.'
+                  : 'Monitoring has not started for this title. No availability check has occurred.',
               style: textTheme.bodySmall?.copyWith(
                 color: colorScheme.onSurfaceVariant,
                 height: 1.4,
@@ -95,6 +130,46 @@ class TitleDetailScreen extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  void _openEdit(BuildContext context, ReleaseTitle title) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) => TitleFormScreen(existingTitle: title),
+      ),
+    );
+  }
+
+  Future<void> _confirmDelete(BuildContext context, ReleaseTitle title) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text('Remove ${title.name} from ReleaseStatus?'),
+          content: const Text(
+            'This removes the title from this local prototype. It is not saved anywhere else.',
+          ),
+          actions: [
+            TextButton(
+              key: const ValueKey<String>('cancel-delete-button'),
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              key: const ValueKey<String>('confirm-delete-button'),
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Delete Title'),
+            ),
+          ],
+        );
+      },
+    );
+    if (confirmed != true || !context.mounted) {
+      return;
+    }
+    final catalog = TitleCatalogScope.of(context);
+    Navigator.of(context).pop();
+    catalog.removeTitle(title.id);
   }
 }
 

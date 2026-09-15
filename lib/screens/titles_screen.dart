@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import 'package:release_status/data/demo_data.dart';
 import 'package:release_status/models/release_title.dart';
+import 'package:release_status/state/title_catalog.dart';
 import 'package:release_status/widgets/title_card.dart';
 
 class TitlesScreen extends StatelessWidget {
@@ -16,6 +16,7 @@ class TitlesScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final titles = TitleCatalogScope.of(context).titles;
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
     final isCompact = MediaQuery.sizeOf(context).width < 720;
@@ -59,13 +60,14 @@ class TitlesScreen extends StatelessWidget {
                 ),
                 const SizedBox(width: 16),
                 FilledButton.tonal(
+                  key: const ValueKey<String>('add-title-button'),
                   onPressed: onAddTitle,
                   child: const Text('Add Title'),
                 ),
               ],
             ),
             const SizedBox(height: 28),
-            for (final title in demoTitles) ...[
+            for (final title in titles) ...[
               if (isCompact)
                 TitleCard(title: title, onViewStatus: () => onOpenTitle(title))
               else
@@ -77,7 +79,7 @@ class TitlesScreen extends StatelessWidget {
             ],
             const SizedBox(height: 8),
             Text(
-              'Local Prototype  ·  Demonstration data only',
+              'Local Prototype  ·  In-memory session data',
               style: textTheme.bodySmall?.copyWith(
                 color: colorScheme.onSurfaceVariant,
               ),

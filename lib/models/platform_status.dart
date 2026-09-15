@@ -5,13 +5,24 @@ class PlatformStatus {
     required this.platformName,
     required this.status,
     this.firstDetectedLabel,
-    required this.lastCheckedLabel,
+    this.lastCheckedLabel,
   });
+
+  /// A licensed platform that has not been checked yet.
+  factory PlatformStatus.waiting(String platformName) {
+    return PlatformStatus(
+      platformName: platformName,
+      status: DistributionStatus.waiting,
+    );
+  }
 
   final String platformName;
   final DistributionStatus status;
   final String? firstDetectedLabel;
-  final String lastCheckedLabel;
+  final String? lastCheckedLabel;
+
+  /// True when a real or demonstration check has recorded a timestamp.
+  bool get hasBeenChecked => lastCheckedLabel != null;
 
   String get statusLabel {
     switch (status) {
