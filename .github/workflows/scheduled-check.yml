@@ -1,0 +1,34 @@
+name: Scheduled catalog check
+
+on:
+  schedule:
+    - cron: '0 */12 * * *'
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Refresh TMDb facts and user catalogs
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_SERVICE_ROLE_KEY:-}" ]; then
+            echo "Add repo secrets SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY."
+            exit 1
+          fi
+          HTTP="$(curl -sS -o /tmp/rs-check.json -w '%{http_code}' --max-time 120 \
+            -X POST "${SUPABASE_URL}/functions/v1/release-status-check" \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Content-Type: application/json" \
+            -d '{"source":"github"}')"
+          echo "HTTP=${HTTP}"
+          python3 - <<'PY'
+          import json
+          data = json.load(open('/tmp/rs-check.json'))
+          print({k: data.get(k) for k in ('checked', 'users', 'fetched', 'failed', 'platformsTouched', 'reason', 'error')})
+          PY
+          test "$HTTP" -ge 200 -a "$HTTP" -lt 300

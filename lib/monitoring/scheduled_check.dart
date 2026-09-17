@@ -1,9 +1,10 @@
 import 'package:release_status/models/app_settings.dart';
 
-/// Whether a check should run while this app is open.
+/// Whether a catalog check should run now.
 ///
-/// Does not check titles while the app is closed. Failed or unconfigured
-/// monitors never start a sweep.
+/// On-device checks only happen while the app is open. The 12-hour server job
+/// uses the same interval and still alerts a closed iPhone when a channel
+/// becomes LIVE.
 bool scheduledCheckShouldRun({
   required AppSettings settings,
   required bool monitorConfigured,

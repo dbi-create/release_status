@@ -131,6 +131,17 @@ class _ReleaseStatusAppState extends State<ReleaseStatusApp> {
   }
 
   Future<void> _runScheduledCheck() async {
+    final sync = _catalog.cloudSync;
+    if (sync != null && sync.isSignedIn) {
+      try {
+        final remote = await sync.pull();
+        if (remote != null) {
+          _catalog.applyCloudSnapshot(remote);
+        }
+      } on Object {
+        // Local catalog remains usable if the pull fails.
+      }
+    }
     if (!scheduledCheckShouldRun(
       settings: _catalog.settings,
       monitorConfigured: _monitor.isConfigured,

@@ -1,7 +1,7 @@
 /// Local monitoring settings.
 ///
-/// [nextCheckDue] is when the next check should run while this app is open.
-/// This app does not check titles while it is closed.
+/// [nextCheckDue] is when the next check should run on this device or the
+/// server. Closed devices still receive LIVE alerts from the 12-hour server job.
 class AppSettings {
   const AppSettings({
     this.monitoringEnabled = true,

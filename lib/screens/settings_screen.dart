@@ -59,7 +59,7 @@ class SettingsScreen extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                'While this app is open, checks run on this schedule. When a title goes LIVE in your catalog, a locked or closed iPhone still gets the alert.',
+                'Checks run on this device while the app is open, and on the server every 12 hours even if every device is closed. A new LIVE channel still alerts a locked iPhone.',
                 style: textTheme.bodyMedium?.copyWith(
                   color: colorScheme.onSurfaceVariant,
                   height: 1.4,
@@ -491,8 +491,8 @@ String _scheduleSummary(AppSettings settings) {
   final last = settings.lastCompletedCheckAt;
   final next = settings.nextCheckDue;
   if (last == null) {
-    return 'Preferred interval: ${_intervalLabel(settings.checkInterval).toLowerCase()}. The first automatic check will run while this app is open.';
+    return 'Preferred interval: ${_intervalLabel(settings.checkInterval).toLowerCase()}. The first automatic check will run on this device or on the 12-hour server job.';
   }
   final nextText = next == null ? '' : ' Next check due ${next.toLocal()}.';
-  return 'Last completed check ${last.toLocal()}.$nextText Checks run while this app is open. They do not run while it is closed.';
+  return 'Last completed check ${last.toLocal()}.$nextText Server checks follow this interval even when the app is closed.';
 }

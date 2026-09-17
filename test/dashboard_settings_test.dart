@@ -147,7 +147,7 @@ void main() {
     );
     expect(find.text('Monitoring enabled'), findsOneWidget);
     expect(
-      find.textContaining('While this app is open, checks run on this schedule'),
+      find.textContaining('Checks run on this device while the app is open'),
       findsOneWidget,
     );
     expect(find.text('Notify when titles go live'), findsOneWidget);
