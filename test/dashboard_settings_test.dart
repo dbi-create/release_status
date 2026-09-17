@@ -36,8 +36,41 @@ void main() {
     expect(catalog.totalTitleCount, 1);
     expect(catalog.licensedPlatformCount, 3);
     expect(catalog.livePlatformCount, 1);
+    expect(catalog.liveOrOnAirPlatformCount, 1);
     expect(catalog.waitingPlatformCount, 1);
     expect(catalog.removedPlatformCount, 1);
+  });
+
+  test('LIVE CHANNELS includes AIRS ON original networks', () {
+    final catalog = TitleCatalog(
+      initialTitles: const [
+        ReleaseTitle(
+          id: 'rookie',
+          name: 'The Rookie',
+          releaseYear: 2018,
+          contentType: 'TV Series',
+          placeholderColor: Color(0xFF3A4A63),
+          platforms: [
+            PlatformStatus(
+              platformName: 'Hulu',
+              status: DistributionStatus.live,
+            ),
+            PlatformStatus(
+              platformName: 'ABC',
+              status: DistributionStatus.originalNetwork,
+            ),
+            PlatformStatus(
+              platformName: 'NBC',
+              status: DistributionStatus.originalNetwork,
+            ),
+            PlatformStatus.waiting('Plex'),
+          ],
+        ),
+      ],
+    );
+
+    expect(catalog.livePlatformCount, 1);
+    expect(catalog.liveOrOnAirPlatformCount, 3);
   });
 
   test(
@@ -117,6 +150,8 @@ void main() {
       find.textContaining('While this app is open, checks run on this schedule'),
       findsOneWidget,
     );
+    expect(find.text('Notify when titles go live'), findsOneWidget);
+    expect(find.text('Send test notification'), findsOneWidget);
     expect(find.text('Export catalog'), findsOneWidget);
     expect(find.text('Export status report'), findsOneWidget);
     expect(find.text('Restore last backup'), findsOneWidget);

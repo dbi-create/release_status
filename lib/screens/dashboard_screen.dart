@@ -120,13 +120,6 @@ class DashboardScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
               ],
-            const SizedBox(height: 8),
-            Text(
-              'Stored on this device  ·  Not a public catalog',
-              style: textTheme.bodySmall?.copyWith(
-                color: colorScheme.onSurfaceVariant,
-              ),
-            ),
           ],
         ),
       ),
@@ -488,7 +481,7 @@ class _CatalogHighlights extends StatelessWidget {
         Expanded(
           child: _HighlightStatCard(
             label: 'LIVE CHANNELS',
-            value: catalog.livePlatformCount,
+            value: catalog.liveOrOnAirPlatformCount,
             colors: const [Color(0xFF2E8A58), Color(0xFF4CAF7A)],
             textTheme: textTheme,
           ),

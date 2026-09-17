@@ -10,6 +10,7 @@ import 'package:release_status/models/platform_origin.dart';
 import 'package:release_status/models/platform_status.dart';
 import 'package:release_status/models/release_title.dart';
 import 'package:release_status/monitoring/apply_monitoring_result.dart';
+import 'package:release_status/notifications/live_alert.dart';
 import 'package:release_status/monitoring/availability_monitor.dart';
 import 'package:release_status/monitoring/discovery_monitor.dart';
 import 'package:release_status/monitoring/discovery_result.dart';
@@ -18,6 +19,7 @@ import 'package:release_status/monitoring/platform_aliases.dart';
 import 'package:release_status/monitoring/removal_policy.dart';
 import 'package:release_status/monitoring/request_policy.dart';
 import 'package:release_status/state/catalog_attention.dart';
+import 'package:release_status/cloud/cloud_catalog_sync.dart';
 import 'package:release_status/storage/catalog_backup.dart';
 import 'package:release_status/storage/catalog_codec.dart';
 import 'package:release_status/storage/catalog_store.dart';
@@ -90,6 +92,7 @@ class TitleCatalog extends ChangeNotifier {
     this.requestPolicy = MonitoringRequestPolicy.immediate,
     this.removalPolicy = RemovalConfirmationPolicy.standard,
     this.store,
+    this.cloudSync,
   }) {
     if (initialTitles != null) {
       _titles = List<ReleaseTitle>.from(initialTitles);
@@ -115,8 +118,10 @@ class TitleCatalog extends ChangeNotifier {
   }
 
   final CatalogStore? store;
+  CloudCatalogSync? cloudSync;
   final MonitoringRequestPolicy requestPolicy;
   final RemovalConfirmationPolicy removalPolicy;
+  Future<void> Function(List<LiveAlert> alerts)? onTitlesWentLive;
 
   late List<ReleaseTitle> _titles;
   late int _createdCount;
@@ -142,6 +147,8 @@ class TitleCatalog extends ChangeNotifier {
 
   CheckFeedback? get lastCheckFeedback => _lastCheckFeedback;
 
+  String? lastCloudError;
+
   /// Completes when outstanding local writes finish.
   Future<void> get persistCompleted => _writeQueue;
 
@@ -152,6 +159,11 @@ class TitleCatalog extends ChangeNotifier {
 
   int get livePlatformCount =>
       _titles.fold<int>(0, (sum, title) => sum + title.livePlatformCount);
+
+  int get liveOrOnAirPlatformCount => _titles.fold<int>(
+    0,
+    (sum, title) => sum + title.liveOrOnAirPlatformCount,
+  );
 
   int get waitingPlatformCount =>
       _titles.fold<int>(0, (sum, title) => sum + title.waitingPlatformCount);
@@ -560,6 +572,7 @@ class TitleCatalog extends ChangeNotifier {
       return;
     }
     _checking = true;
+    final previouslyLive = _livePlatformKeys();
     _checkProgress = CatalogCheckProgress(
       currentTitleIndex: 1,
       totalTitles: 1,
@@ -568,6 +581,7 @@ class TitleCatalog extends ChangeNotifier {
     notifyListeners();
     try {
       await _checkSingleTitle(title, monitor);
+      await _emitWentLive(_newLiveAlerts(previouslyLive));
     } catch (_) {
       // Individual platform rows already record check failures.
     } finally {
@@ -589,12 +603,7 @@ class TitleCatalog extends ChangeNotifier {
     _checking = true;
     final failed = <String>[];
     final discovered = <String>[];
-    final previouslyLive = <String>{
-      for (final title in queued)
-        for (final platform in title.platforms)
-          if (platform.status == DistributionStatus.live)
-            '${title.id}|${platform.platformName}',
-    };
+    final previouslyLive = _livePlatformKeys();
     notifyListeners();
     try {
       for (var i = 0; i < queued.length; i++) {
@@ -620,12 +629,9 @@ class TitleCatalog extends ChangeNotifier {
           failed.add(title.name);
         }
       }
-      final nowLive = <String>[
-        for (final title in _titles)
-          for (final platform in title.platforms)
-            if (platform.status == DistributionStatus.live &&
-                !previouslyLive.contains('${title.id}|${platform.platformName}'))
-              platform.platformName,
+      final nowLiveAlerts = _newLiveAlerts(previouslyLive);
+      final nowLive = [
+        for (final alert in nowLiveAlerts) alert.platformName,
       ];
       _settings = _settings.copyWith(lastCompletedCheckAt: DateTime.now());
       _checkProgress = CatalogCheckProgress(
@@ -638,6 +644,7 @@ class TitleCatalog extends ChangeNotifier {
         completed: true,
       );
       await _persist();
+      await _emitWentLive(nowLiveAlerts);
     } finally {
       _checking = false;
       notifyListeners();
@@ -855,6 +862,17 @@ class TitleCatalog extends ChangeNotifier {
     );
   }
 
+  void applyCloudSnapshot(CatalogSnapshot snapshot) {
+    _titles = List<ReleaseTitle>.from(snapshot.titles);
+    _createdCount = snapshot.createdCount;
+    _settings = snapshot.settings;
+    notifyListeners();
+    final catalogStore = store;
+    if (catalogStore != null) {
+      _writeQueue = _writeQueue.then((_) => catalogStore.save(this.snapshot));
+    }
+  }
+
   void _commit() {
     notifyListeners();
     _writeQueue = _writeQueue.then((_) => _persist());
@@ -866,6 +884,30 @@ class TitleCatalog extends ChangeNotifier {
       return;
     }
     await catalogStore.save(snapshot);
+    final sync = cloudSync;
+    if (sync == null || !sync.isSignedIn) {
+      return;
+    }
+    try {
+      await sync.push(snapshot);
+      lastCloudError = null;
+    } on Object catch (error) {
+      lastCloudError = '$error';
+    }
+  }
+
+  Future<void> syncToCloud() async {
+    final sync = cloudSync;
+    if (sync == null || !sync.isSignedIn) {
+      return;
+    }
+    try {
+      await sync.push(snapshot);
+      lastCloudError = null;
+    } on Object catch (error) {
+      lastCloudError = '$error';
+      rethrow;
+    }
   }
 
   String? _optionalId(String? value) {
@@ -874,6 +916,36 @@ class TitleCatalog extends ChangeNotifier {
       return null;
     }
     return trimmed;
+  }
+
+  Set<String> _livePlatformKeys() {
+    return {
+      for (final title in _titles)
+        for (final platform in title.platforms)
+          if (platform.status == DistributionStatus.live)
+            '${title.id}|${platform.platformName}',
+    };
+  }
+
+  List<LiveAlert> _newLiveAlerts(Set<String> previouslyLive) {
+    return [
+      for (final title in _titles)
+        for (final platform in title.platforms)
+          if (platform.status == DistributionStatus.live &&
+              !previouslyLive.contains('${title.id}|${platform.platformName}'))
+            LiveAlert(
+              titleId: title.id,
+              titleName: title.name,
+              platformName: platform.platformName,
+            ),
+    ];
+  }
+
+  Future<void> _emitWentLive(List<LiveAlert> alerts) async {
+    if (alerts.isEmpty || !_settings.liveAlertsEnabled) {
+      return;
+    }
+    await onTitlesWentLive?.call(alerts);
   }
 }
 

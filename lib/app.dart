@@ -1,5 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
+import 'package:release_status/cloud/attach_catalog.dart';
+import 'package:release_status/cloud/cloud_config.dart';
+import 'package:release_status/cloud/cloud_session.dart';
+import 'package:release_status/cloud/cloud_session_scope.dart';
 import 'package:release_status/models/release_title.dart';
 import 'package:release_status/monitoring/availability_monitor.dart';
 import 'package:release_status/monitoring/listing_url_verifier.dart';
@@ -8,7 +14,10 @@ import 'package:release_status/monitoring/production_monitor.dart';
 import 'package:release_status/monitoring/request_policy.dart';
 import 'package:release_status/monitoring/scheduled_check.dart';
 import 'package:release_status/screens/dashboard_screen.dart';
+import 'package:release_status/screens/login_screen.dart';
 import 'package:release_status/screens/settings_screen.dart';
+import 'package:release_status/screens/splash_screen.dart';
+import 'package:release_status/notifications/live_alert_service.dart';
 import 'package:release_status/screens/title_detail_screen.dart';
 import 'package:release_status/screens/title_form_screen.dart';
 import 'package:release_status/screens/titles_screen.dart';
@@ -38,6 +47,7 @@ class ReleaseStatusApp extends StatefulWidget {
     this.initialSnapshot,
     this.initialTitles,
     this.enableScheduledMonitoring = false,
+    this.showBootSplash = false,
   });
 
   final AvailabilityMonitor? availabilityMonitor;
@@ -46,6 +56,7 @@ class ReleaseStatusApp extends StatefulWidget {
   final CatalogSnapshot? initialSnapshot;
   final List<ReleaseTitle>? initialTitles;
   final bool enableScheduledMonitoring;
+  final bool showBootSplash;
 
   @override
   State<ReleaseStatusApp> createState() => _ReleaseStatusAppState();
@@ -59,10 +70,15 @@ class _ReleaseStatusAppState extends State<ReleaseStatusApp> {
     requestPolicy: widget.catalogStore == null
         ? MonitoringRequestPolicy.immediate
         : MonitoringRequestPolicy.standard,
-  );
+  )..onTitlesWentLive = LiveAlertService.instance.handle;
+  late final CloudSession _cloudSession = CloudSession()
+    ..attachClient(releaseStatusCloudClient());
   late final AvailabilityMonitor _monitor =
       widget.availabilityMonitor ?? createProductionAvailabilityMonitor();
   MonitoringScheduler? _scheduler;
+  Timer? _splashTimer;
+  String? _boundUserId;
+  late bool _showingSplash = widget.showBootSplash;
 
   @override
   void initState() {
@@ -70,6 +86,48 @@ class _ReleaseStatusAppState extends State<ReleaseStatusApp> {
     if (widget.enableScheduledMonitoring) {
       _scheduler = MonitoringScheduler(onTick: _runScheduledCheck)..start();
     }
+    _cloudSession.addListener(_bindCatalogToAccount);
+    unawaited(_bindCatalogToAccount());
+    if (widget.showBootSplash) {
+      _splashTimer = Timer(const Duration(seconds: 5), () {
+        if (!mounted) {
+          return;
+        }
+        setState(() => _showingSplash = false);
+        if (widget.enableScheduledMonitoring) {
+          unawaited(_prepareLiveAlerts());
+        }
+      });
+    } else if (widget.enableScheduledMonitoring) {
+      unawaited(_prepareLiveAlerts());
+    }
+  }
+
+  Future<void> _prepareLiveAlerts() async {
+    await LiveAlertService.instance.ensureReady();
+    await LiveAlertService.instance.listenForAccount(_cloudSession.userId);
+  }
+
+  Future<void> _bindCatalogToAccount() async {
+    final userId = _cloudSession.userId;
+    if (userId == _boundUserId) {
+      return;
+    }
+    _boundUserId = userId;
+    if (userId == null) {
+      _catalog.cloudSync = null;
+      unawaited(LiveAlertService.instance.listenForAccount(null));
+      return;
+    }
+    await attachSignedInCatalog(_catalog);
+    unawaited(LiveAlertService.instance.listenForAccount(userId));
+    unawaited(() async {
+      try {
+        await registerCurrentDeviceToken();
+      } on Object {
+        // Duplicate device tokens are expected on repeat sign-in.
+      }
+    }());
   }
 
   Future<void> _runScheduledCheck() async {
@@ -86,7 +144,11 @@ class _ReleaseStatusAppState extends State<ReleaseStatusApp> {
 
   @override
   void dispose() {
+    _splashTimer?.cancel();
     _scheduler?.dispose();
+    _cloudSession
+      ..removeListener(_bindCatalogToAccount)
+      ..dispose();
     _catalog.dispose();
     super.dispose();
   }
@@ -112,7 +174,9 @@ class _ReleaseStatusAppState extends State<ReleaseStatusApp> {
       monitor: _monitor,
       child: ListingUrlCheckerScope(
         checker: widget.listingUrlChecker ?? fetchAndVerifyListingUrl,
-        child: TitleCatalogScope(
+        child: CloudSessionScope(
+          session: _cloudSession,
+          child: TitleCatalogScope(
           catalog: _catalog,
           child: MaterialApp(
           title: 'ReleaseStatus',
@@ -183,7 +247,21 @@ class _ReleaseStatusAppState extends State<ReleaseStatusApp> {
             ),
             dialogTheme: const DialogThemeData(backgroundColor: _surface),
           ),
-          home: const AppShell(),
+          home: ListenableBuilder(
+            listenable: _cloudSession,
+            builder: (context, _) {
+              if (_showingSplash) {
+                return const SplashScreen();
+              }
+              if (CloudConfig.isConfigured && !_cloudSession.isSignedIn) {
+                return LoginScreen(
+                  onAuthenticated: () => attachSignedInCatalog(_catalog),
+                );
+              }
+              return const AppShell();
+            },
+          ),
+        ),
         ),
         ),
       ),

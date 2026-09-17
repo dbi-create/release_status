@@ -8,6 +8,7 @@ class AppSettings {
     this.checkInterval = defaultCheckInterval,
     this.lastCompletedCheckAt,
     this.notificationsClearedAt,
+    this.liveAlertsEnabled = true,
   });
 
   static const Duration defaultCheckInterval = Duration(hours: 24);
@@ -23,6 +24,7 @@ class AppSettings {
   final Duration checkInterval;
   final DateTime? lastCompletedCheckAt;
   final DateTime? notificationsClearedAt;
+  final bool liveAlertsEnabled;
 
   DateTime? get nextCheckDue {
     if (!monitoringEnabled || lastCompletedCheckAt == null) {
@@ -44,6 +46,7 @@ class AppSettings {
     Duration? checkInterval,
     DateTime? lastCompletedCheckAt,
     DateTime? notificationsClearedAt,
+    bool? liveAlertsEnabled,
     bool clearLastCompletedCheckAt = false,
   }) {
     return AppSettings(
@@ -54,6 +57,7 @@ class AppSettings {
           : lastCompletedCheckAt ?? this.lastCompletedCheckAt,
       notificationsClearedAt:
           notificationsClearedAt ?? this.notificationsClearedAt,
+      liveAlertsEnabled: liveAlertsEnabled ?? this.liveAlertsEnabled,
     );
   }
 
@@ -63,6 +67,7 @@ class AppSettings {
       'checkIntervalHours': checkInterval.inHours,
       'lastCompletedCheckAt': lastCompletedCheckAt?.toIso8601String(),
       'notificationsClearedAt': notificationsClearedAt?.toIso8601String(),
+      'liveAlertsEnabled': liveAlertsEnabled,
     };
   }
 
@@ -82,6 +87,7 @@ class AppSettings {
       notificationsClearedAt: json['notificationsClearedAt'] is String
           ? DateTime.tryParse(json['notificationsClearedAt'] as String)
           : null,
+      liveAlertsEnabled: json['liveAlertsEnabled'] as bool? ?? true,
     );
   }
 }

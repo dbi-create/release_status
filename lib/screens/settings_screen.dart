@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 
 import 'package:release_status/models/app_settings.dart';
 import 'package:release_status/monitoring/availability_monitor.dart';
+import 'package:release_status/notifications/live_alert_service.dart';
 import 'package:release_status/state/title_catalog.dart';
+import 'package:release_status/widgets/cloud_account_card.dart';
 import 'package:release_status/widgets/status_report_export.dart';
 
 class SettingsScreen extends StatelessWidget {
@@ -57,7 +59,7 @@ class SettingsScreen extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                'While this app is open, checks run on this schedule. This app does not check titles while it is closed.',
+                'While this app is open, checks run on this schedule. When a title goes LIVE in your catalog, a locked or closed iPhone still gets the alert.',
                 style: textTheme.bodyMedium?.copyWith(
                   color: colorScheme.onSurfaceVariant,
                   height: 1.4,
@@ -81,6 +83,37 @@ class SettingsScreen extends StatelessWidget {
                       settings.copyWith(monitoringEnabled: value),
                     );
                   },
+                ),
+              ),
+              Material(
+                color: Colors.transparent,
+                child: SwitchListTile(
+                  key: const ValueKey<String>('live-alerts-switch'),
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Notify when titles go live'),
+                  subtitle: const Text(
+                    'Sends a notification when a check or catalog update finds a new LIVE platform.',
+                  ),
+                  value: settings.liveAlertsEnabled,
+                  onChanged: (value) {
+                    catalog.updateSettings(
+                      settings.copyWith(liveAlertsEnabled: value),
+                    );
+                  },
+                ),
+              ),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton(
+                  key: const ValueKey<String>('send-test-live-alert-button'),
+                  onPressed: () => _sendTestLiveAlert(context),
+                  child: const Text('Send test notification'),
+                ),
+              ),
+              Text(
+                'Sends to this Mac and to your iPhone, including when that app is closed.',
+                style: textTheme.bodySmall?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
                 ),
               ),
               const SizedBox(height: 8),
@@ -119,6 +152,7 @@ class SettingsScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 32),
+              const CloudAccountCard(),
               Text(
                 'Data',
                 style: textTheme.titleLarge?.copyWith(
@@ -127,7 +161,7 @@ class SettingsScreen extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                'Titles, platform status, and check history are stored on this device. Export a backup before replacing this catalog. Files are not synced to a cloud account.',
+                'Titles, platform status, and check history are stored on this device. Sign in to also back them up to your Orbium account. Export a file backup before replacing this catalog.',
                 style: textTheme.bodyMedium?.copyWith(
                   color: colorScheme.onSurfaceVariant,
                   height: 1.4,
@@ -413,6 +447,34 @@ class SettingsScreen extends StatelessWidget {
       catalog.restoreStarterTitles();
     }
   }
+}
+
+Future<void> _sendTestLiveAlert(BuildContext context) async {
+  final messenger = ScaffoldMessenger.of(context);
+  try {
+    final result = await LiveAlertService.instance.showTest();
+    messenger.showSnackBar(SnackBar(content: Text(_testAlertMessage(result))));
+  } on Object catch (error) {
+    messenger.showSnackBar(
+      SnackBar(content: Text('Could not send a test notification. $error')),
+    );
+  }
+}
+
+String _testAlertMessage(LiveAlertFanOut result) {
+  if (result.sent > 0) {
+    return 'Sent to your iPhone. It should appear even if the app is closed.';
+  }
+  if (result.reason == 'no_ios_tokens' || result.tokenCount == 0) {
+    return 'No iPhone push token yet. Open Release Status on the phone, stay signed in, and allow notifications. Alerts while the app is open still work.';
+  }
+  if (result.reason == 'apns_not_configured') {
+    return 'iPhone push is not configured on the server yet.';
+  }
+  if (result.reason == 'not_signed_in') {
+    return 'Sign in on this Mac so the test can reach your iPhone.';
+  }
+  return 'This Mac should show a banner. iPhone push failed${result.reason == null ? '.' : ': ${result.reason}'}';
 }
 
 String _intervalLabel(Duration interval) {

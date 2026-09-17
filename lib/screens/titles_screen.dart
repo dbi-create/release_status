@@ -169,13 +169,6 @@ class _TitlesScreenState extends State<TitlesScreen> {
                 ),
                 const SizedBox(height: 12),
               ],
-            const SizedBox(height: 8),
-            Text(
-              'Stored on this device  ·  Not a public catalog',
-              style: textTheme.bodySmall?.copyWith(
-                color: colorScheme.onSurfaceVariant,
-              ),
-            ),
           ],
         ),
       ),

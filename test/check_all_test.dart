@@ -4,12 +4,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:release_status/app.dart';
+import 'package:release_status/models/app_settings.dart';
 import 'package:release_status/models/platform_status.dart';
 import 'package:release_status/models/release_title.dart';
+import 'package:release_status/notifications/live_alert.dart';
+import 'package:release_status/state/title_catalog.dart';
 import 'package:release_status/monitoring/availability_monitor.dart';
 import 'package:release_status/monitoring/monitoring_result.dart';
 import 'package:release_status/monitoring/title_identity.dart';
-import 'package:release_status/state/title_catalog.dart';
 import 'package:release_status/storage/catalog_store.dart';
 
 void main() {
@@ -52,6 +54,58 @@ void main() {
     expect(catalog.checkProgress!.completed, isTrue);
     expect(catalog.checkProgress!.nowLiveNames, ['Netflix', 'Plex']);
     expect(catalog.checkProgress!.label, contains('2 now live'));
+  });
+
+  test('check all notifies when platforms become live', () async {
+    final monitor = _RecordingMonitor();
+    final alerts = <LiveAlert>[];
+    final catalog = TitleCatalog(
+      initialTitles: const [
+        ReleaseTitle(
+          id: 'a',
+          name: 'Alpha',
+          releaseYear: 2020,
+          contentType: 'Movie',
+          placeholderColor: Color(0xFF3A4A63),
+          platforms: [PlatformStatus.waiting('Netflix')],
+        ),
+      ],
+    )..onTitlesWentLive = (wentLive) async {
+        alerts.addAll(wentLive);
+      };
+
+    await catalog.checkAllTitles(monitor);
+
+    expect(alerts, hasLength(1));
+    expect(alerts.single.titleName, 'Alpha');
+    expect(alerts.single.platformName, 'Netflix');
+  });
+
+  test('live alerts can be disabled', () async {
+    final monitor = _RecordingMonitor();
+    var called = false;
+    final catalog = TitleCatalog(
+      initialSnapshot: const CatalogSnapshot(
+        existedOnDisk: true,
+        createdCount: 1,
+        titles: [
+          ReleaseTitle(
+            id: 'a',
+            name: 'Alpha',
+            releaseYear: 2020,
+            contentType: 'Movie',
+            placeholderColor: Color(0xFF3A4A63),
+            platforms: [PlatformStatus.waiting('Netflix')],
+          ),
+        ],
+        settings: AppSettings(liveAlertsEnabled: false),
+      ),
+    )..onTitlesWentLive = (_) async {
+        called = true;
+      };
+
+    await catalog.checkAllTitles(monitor);
+    expect(called, isFalse);
   });
 
   test('one failed title does not abort check all', () async {

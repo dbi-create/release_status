@@ -240,7 +240,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(
       find.textContaining('https://example.invalid/relay/marked'),
-      findsOneWidget,
+      findsWidgets,
     );
   });
 

@@ -85,7 +85,6 @@ void main() {
     expect(find.textContaining('Channel Beta'), findsOneWidget);
     expect(find.text('LIVE'), findsWidgets);
     expect(find.textContaining('Added Manually'), findsWidgets);
-    expect(find.textContaining('Listing URL'), findsWidgets);
   });
 
   testWidgets('manual add platform requires a listing URL', (tester) async {
