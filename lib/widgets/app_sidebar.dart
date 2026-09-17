@@ -5,10 +5,12 @@ class AppSidebar extends StatelessWidget {
     super.key,
     required this.selectedIndex,
     required this.onDestinationSelected,
+    required this.onAddTitle,
   });
 
   final int selectedIndex;
   final ValueChanged<int> onDestinationSelected;
+  final VoidCallback onAddTitle;
 
   @override
   Widget build(BuildContext context) {
@@ -55,9 +57,24 @@ class AppSidebar extends StatelessWidget {
             _SidebarDestination(
               icon: Icons.video_library_outlined,
               selectedIcon: Icons.video_library,
-              label: 'My Titles',
+              label: 'Your Titles',
               selected: selectedIndex == 1,
               onTap: () => onDestinationSelected(1),
+            ),
+            _SidebarDestination(
+              key: const ValueKey<String>('add-title-button'),
+              icon: Icons.add_circle_outline,
+              selectedIcon: Icons.add_circle,
+              label: 'Add Title',
+              selected: false,
+              onTap: onAddTitle,
+            ),
+            _SidebarDestination(
+              icon: Icons.settings_outlined,
+              selectedIcon: Icons.settings,
+              label: 'Settings',
+              selected: selectedIndex == 2,
+              onTap: () => onDestinationSelected(2),
             ),
             const Spacer(),
             Padding(
@@ -79,6 +96,7 @@ class AppSidebar extends StatelessWidget {
 
 class _SidebarDestination extends StatelessWidget {
   const _SidebarDestination({
+    super.key,
     required this.icon,
     required this.selectedIcon,
     required this.label,

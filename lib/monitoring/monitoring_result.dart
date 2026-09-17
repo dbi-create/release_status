@@ -1,6 +1,8 @@
+import 'package:release_status/models/discovered_platform.dart';
+import 'package:release_status/models/match_confidence.dart';
 import 'package:release_status/models/platform_status.dart';
 
-enum MatchConfidence { noMatch, possibleMatch, verifiedMatch }
+export 'package:release_status/models/match_confidence.dart';
 
 class MonitoringResult {
   const MonitoringResult({
@@ -12,7 +14,13 @@ class MonitoringResult {
     this.evidenceSource,
     this.evidenceUrl,
     this.detail,
+    this.sourceName,
     this.checkFailed = false,
+    this.isVerifiedAbsence = false,
+    this.kind = MonitoringResultKind.other,
+    this.posterUrl,
+    this.matchedTmdbId,
+    this.discoveredPlatforms = const [],
   });
 
   factory MonitoringResult.unconfigured(String platformName) {
@@ -20,9 +28,10 @@ class MonitoringResult {
       platformName: platformName,
       status: DistributionStatus.waiting,
       matchConfidence: MatchConfidence.noMatch,
-      message: 'Not yet verified',
+      message: 'Not detected yet',
       detail:
-          'Availability provider is not configured. No external lookup was performed.',
+          'Availability checking is not configured. No external lookup was performed.',
+      kind: MonitoringResultKind.unconfigured,
     );
   }
 
@@ -30,24 +39,28 @@ class MonitoringResult {
     required String platformName,
     required String detail,
     DateTime? checkedAt,
+    String? sourceName,
   }) {
     return MonitoringResult(
       platformName: platformName,
       status: DistributionStatus.waiting,
       matchConfidence: MatchConfidence.noMatch,
-      message: 'Check failed',
+      message: 'Could not complete this check',
       detail: detail,
       checkedAt: checkedAt,
+      sourceName: sourceName,
       checkFailed: true,
+      kind: MonitoringResultKind.failed,
     );
   }
 
   factory MonitoringResult.notVerified({
     required String platformName,
     required DateTime checkedAt,
-    String message = 'Not yet verified',
+    String message = 'Not detected yet',
     String? detail,
     MatchConfidence matchConfidence = MatchConfidence.noMatch,
+    String? sourceName,
   }) {
     return MonitoringResult(
       platformName: platformName,
@@ -56,6 +69,33 @@ class MonitoringResult {
       message: message,
       detail: detail,
       checkedAt: checkedAt,
+      sourceName: sourceName,
+      kind: matchConfidence == MatchConfidence.possibleMatch
+          ? MonitoringResultKind.possibleMatch
+          : MonitoringResultKind.noMatch,
+    );
+  }
+
+  factory MonitoringResult.verifiedAbsence({
+    required String platformName,
+    required DateTime checkedAt,
+    required String evidenceSource,
+    String? evidenceUrl,
+    String? detail,
+    String? sourceName,
+  }) {
+    return MonitoringResult(
+      platformName: platformName,
+      status: DistributionStatus.waiting,
+      matchConfidence: MatchConfidence.verifiedMatch,
+      message: 'Not detected yet',
+      detail: detail,
+      checkedAt: checkedAt,
+      evidenceSource: evidenceSource,
+      evidenceUrl: evidenceUrl,
+      sourceName: sourceName ?? evidenceSource,
+      isVerifiedAbsence: true,
+      kind: MonitoringResultKind.verifiedAbsence,
     );
   }
 
@@ -65,16 +105,19 @@ class MonitoringResult {
     required String evidenceSource,
     String? evidenceUrl,
     String? detail,
+    String? sourceName,
   }) {
     return MonitoringResult(
       platformName: platformName,
       status: DistributionStatus.live,
       matchConfidence: MatchConfidence.verifiedMatch,
-      message: 'Verified availability',
+      message: 'Detected on $platformName',
       detail: detail,
       checkedAt: checkedAt,
       evidenceSource: evidenceSource,
       evidenceUrl: evidenceUrl,
+      sourceName: sourceName ?? evidenceSource,
+      kind: MonitoringResultKind.verifiedLive,
     );
   }
 
@@ -93,11 +136,55 @@ class MonitoringResult {
 
   final String? evidenceSource;
   final String? evidenceUrl;
+  final String? sourceName;
   final bool checkFailed;
+  final bool isVerifiedAbsence;
+  final MonitoringResultKind kind;
+  final String? posterUrl;
+  final String? matchedTmdbId;
+  final List<DiscoveredPlatform> discoveredPlatforms;
 
   bool get isVerifiedLive =>
       !checkFailed &&
+      !isVerifiedAbsence &&
       matchConfidence == MatchConfidence.verifiedMatch &&
       status == DistributionStatus.live &&
       evidenceSource != null;
+
+  bool get hasVerifiedIdentity =>
+      !checkFailed && matchConfidence == MatchConfidence.verifiedMatch;
+
+  MonitoringResult withTitleDiscovery({
+    String? posterUrl,
+    String? matchedTmdbId,
+    List<DiscoveredPlatform> discoveredPlatforms = const [],
+  }) {
+    return MonitoringResult(
+      platformName: platformName,
+      status: status,
+      matchConfidence: matchConfidence,
+      message: message,
+      checkedAt: checkedAt,
+      evidenceSource: evidenceSource,
+      evidenceUrl: evidenceUrl,
+      detail: detail,
+      sourceName: sourceName,
+      checkFailed: checkFailed,
+      isVerifiedAbsence: isVerifiedAbsence,
+      kind: kind,
+      posterUrl: posterUrl ?? this.posterUrl,
+      matchedTmdbId: matchedTmdbId ?? this.matchedTmdbId,
+      discoveredPlatforms: discoveredPlatforms,
+    );
+  }
+}
+
+enum MonitoringResultKind {
+  unconfigured,
+  failed,
+  noMatch,
+  possibleMatch,
+  verifiedAbsence,
+  verifiedLive,
+  other,
 }

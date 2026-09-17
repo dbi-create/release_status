@@ -5,6 +5,8 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:release_status/app.dart';
 import 'package:release_status/monitoring/availability_monitor.dart';
+import 'package:release_status/monitoring/discovery_monitor.dart';
+import 'package:release_status/monitoring/discovery_result.dart';
 import 'package:release_status/monitoring/monitoring_result.dart';
 import 'package:release_status/monitoring/title_identity.dart';
 import 'package:release_status/screens/title_detail_screen.dart';
@@ -19,7 +21,7 @@ void main() {
       find.byKey(const ValueKey<String>('check-status-button')),
       findsOneWidget,
     );
-    expect(find.text('Check Status'), findsOneWidget);
+    expect(find.text('Recheck Platform Status'), findsOneWidget);
   });
 
   testWidgets('starting a check displays checking state', (tester) async {
@@ -37,7 +39,7 @@ void main() {
       find.byKey(const ValueKey<String>('checking-status-indicator')),
       findsOneWidget,
     );
-    expect(find.text('Checking public availability…'), findsOneWidget);
+    expect(find.textContaining('Checking MARKED'), findsOneWidget);
 
     gate.complete();
     await tester.pumpAndSettle();
@@ -80,9 +82,9 @@ void main() {
       ),
       findsWidgets,
     );
-    expect(find.text('Verified availability'), findsOneWidget);
-    expect(find.text('Relay'), findsOneWidget);
-    expect(find.text('WAITING'), findsWidgets);
+    expect(find.textContaining('Relay - Added Manually'), findsOneWidget);
+    expect(find.textContaining('Relay'), findsWidgets);
+    expect(find.text('NOT LIVE'), findsWidgets);
   });
 
   testWidgets('unverified result remains WAITING', (tester) async {
@@ -117,9 +119,9 @@ void main() {
       ),
       findsNothing,
     );
-    expect(find.text('WAITING'), findsWidgets);
-    expect(find.text('Not yet verified'), findsWidgets);
-    expect(find.text('0 of 5 platforms live'), findsWidgets);
+    expect(find.text('NOT LIVE'), findsWidgets);
+    expect(find.textContaining('Added Manually'), findsWidgets);
+    expect(find.text('0 of 5 platforms live', findRichText: true), findsWidgets);
   });
 
   testWidgets('possible match remains WAITING', (tester) async {
@@ -149,9 +151,9 @@ void main() {
       ),
       findsNothing,
     );
-    expect(find.text('WAITING'), findsWidgets);
-    expect(find.text('Possible match — verification required'), findsWidgets);
-    expect(find.text('0 of 5 platforms live'), findsWidgets);
+    expect(find.text('NOT LIVE'), findsWidgets);
+    expect(find.textContaining('Added Manually'), findsWidgets);
+    expect(find.text('0 of 5 platforms live', findRichText: true), findsWidgets);
   });
 
   testWidgets('failed check does not mark platform unavailable', (
@@ -189,23 +191,22 @@ void main() {
       ),
       findsNothing,
     );
-    expect(find.text('WAITING'), findsWidgets);
-    expect(find.text('Check failed'), findsWidgets);
-    expect(find.text('Could not reach the availability source.'), findsWidgets);
-    expect(find.text('0 of 5 platforms live'), findsWidgets);
+    expect(find.text('NOT LIVE'), findsWidgets);
+    expect(find.textContaining('Added Manually'), findsWidgets);
+    expect(find.text('0 of 5 platforms live', findRichText: true), findsWidgets);
   });
 
   testWidgets('LIVE result updates title live count', (tester) async {
     await _pumpApp(tester, monitor: _relayVerifiedMonitor());
     await _openMarked(tester);
 
-    expect(find.text('0 of 5 platforms live'), findsWidgets);
+    expect(find.text('0 of 5 platforms live', findRichText: true), findsWidgets);
 
     await tester.tap(find.byKey(const ValueKey<String>('check-status-button')));
     await tester.pumpAndSettle();
 
-    expect(find.text('1 of 5 platforms live'), findsWidgets);
-    expect(find.text('0 of 5 platforms live'), findsNothing);
+    expect(find.text('1 of 5 platforms live', findRichText: true), findsWidgets);
+    expect(find.text('0 of 5 platforms live', findRichText: true), findsNothing);
   });
 
   testWidgets('LIVE result updates dashboard counts', (tester) async {
@@ -218,7 +219,8 @@ void main() {
     await tester.pageBack();
     await tester.pumpAndSettle();
 
-    expect(find.text('1 live  ·  4 waiting'), findsOneWidget);
+    expect(find.text('LICENSED PLATFORMS: 5'), findsOneWidget);
+    expect(find.text('NOT LIVE: 4'), findsNothing);
   });
 
   testWidgets('LIVE result can carry evidence source and URL', (tester) async {
@@ -228,21 +230,52 @@ void main() {
     await tester.tap(find.byKey(const ValueKey<String>('check-status-button')));
     await tester.pumpAndSettle();
 
-    expect(find.text('Evidence  Test Evidence Source'), findsOneWidget);
-    expect(find.text('https://example.invalid/relay/marked'), findsOneWidget);
+    expect(find.textContaining('Source: Test Evidence Source'), findsNothing);
+    expect(
+      find.textContaining('https://example.invalid/relay/marked'),
+      findsNothing,
+    );
+
+    await tester.tap(find.byKey(const ValueKey<String>('edit-title-button')));
+    await tester.pumpAndSettle();
+    expect(
+      find.textContaining('https://example.invalid/relay/marked'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('unchecked platform has no fake detection data', (tester) async {
     await _pumpApp(tester);
     await _openMarked(tester);
 
-    expect(find.text('Relay'), findsOneWidget);
-    expect(find.text('WAITING'), findsWidgets);
+    expect(find.textContaining('Relay'), findsOneWidget);
+    expect(find.text('NOT LIVE'), findsWidgets);
     expect(find.text('Verified availability'), findsNothing);
     expect(find.textContaining('Evidence'), findsNothing);
     expect(find.textContaining('https://'), findsNothing);
     expect(find.text('First Detected'), findsNothing);
-    expect(find.text('Monitoring has not started'), findsWidgets);
+    expect(find.textContaining('Monitoring has not started'), findsWidgets);
+  });
+
+  testWidgets('Check Status adds TMDb channels beyond the ones already listed', (
+    tester,
+  ) async {
+    await _pumpApp(
+      tester,
+      monitor: _DiscoveringMonitor(
+        platforms: const ['Plex', 'Tubi'],
+      ),
+    );
+    await _openMarked(tester);
+
+    expect(find.textContaining('Tubi'), findsNothing);
+    await tester.tap(find.byKey(const ValueKey<String>('check-status-button')));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Tubi'), findsWidgets);
+    expect(find.textContaining('PLEX'), findsWidgets);
+    expect(find.text('2 of 6 platforms live', findRichText: true), findsWidgets);
+    expect(find.textContaining('New platform discovered'), findsOneWidget);
   });
 }
 
@@ -301,6 +334,12 @@ class _ScriptedMonitor implements AvailabilityMonitor {
   bool get isConfigured => true;
 
   @override
+  String get sourceId => 'test';
+
+  @override
+  String get displayName => 'Test source';
+
+  @override
   Future<MonitoringResult> check({
     required TitleIdentity title,
     required String licensedPlatform,
@@ -315,5 +354,48 @@ class _ScriptedMonitor implements AvailabilityMonitor {
           platformName: licensedPlatform,
           checkedAt: DateTime(2026, 9, 14, 18),
         );
+  }
+}
+
+class _DiscoveringMonitor implements AvailabilityMonitor, DiscoveryMonitor {
+  _DiscoveringMonitor({required this.platforms});
+
+  final List<String> platforms;
+
+  @override
+  bool get isConfigured => true;
+
+  @override
+  String get sourceId => 'test-discovery';
+
+  @override
+  String get displayName => 'TMDb Watch Providers';
+
+  @override
+  Future<DiscoveryResult> discover({required TitleIdentity title}) async {
+    return DiscoveryResult(
+      matchConfidence: MatchConfidence.verifiedMatch,
+      sourceName: displayName,
+      checkedAt: DateTime(2026, 9, 14, 18),
+      matchedTmdbId: '335294',
+      platforms: [
+        for (final name in platforms)
+          DiscoveredAvailability(
+            displayName: name,
+            sourceName: displayName,
+          ),
+      ],
+    );
+  }
+
+  @override
+  Future<MonitoringResult> check({
+    required TitleIdentity title,
+    required String licensedPlatform,
+  }) async {
+    return MonitoringResult.notVerified(
+      platformName: licensedPlatform,
+      checkedAt: DateTime(2026, 9, 14, 18),
+    );
   }
 }

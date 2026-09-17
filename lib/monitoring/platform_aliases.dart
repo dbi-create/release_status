@@ -1,7 +1,7 @@
 /// Maps user-typed platform names to a canonical service id for matching.
 ///
-/// This does not prove availability. It only helps compare a user's licensed
-/// platform name with a provider's service name.
+/// Aliases normalize names. They do not prove availability and they do not
+/// invent a TMDb listing that does not exist.
 class PlatformAliases {
   static const Map<String, Set<String>> _aliases = {
     'amazon': {
@@ -11,8 +11,9 @@ class PlatformAliases {
       'amazon video',
       'prime video',
       'prime',
+      'amazon prime video with ads',
     },
-    'plex': {'plex', 'plex tv'},
+    'plex': {'plex', 'plex tv', 'plex channel', 'plex free'},
     'fawesome': {
       'fawesome',
       'future today',
@@ -20,7 +21,12 @@ class PlatformAliases {
       'future today (fawesome)',
     },
     'ofive_plus': {'ofive+', 'ofive plus', 'ofive', 'ofiveplus'},
-    'relay': {'relay'},
+    'relay': {'relay', 'relay.film', 'relay film'},
+    'netflix': {
+      'netflix',
+      'netflix standard with ads',
+      'netflix basic with ads',
+    },
   };
 
   static String normalize(String value) {

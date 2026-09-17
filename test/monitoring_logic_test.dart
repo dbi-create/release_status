@@ -30,6 +30,14 @@ void main() {
       expect(PlatformAliases.canonicalId('Ofive+'), 'ofive_plus');
       expect(PlatformAliases.canonicalId('OFIVE+'), 'ofive_plus');
       expect(PlatformAliases.canonicalId('Relay'), 'relay');
+      expect(PlatformAliases.canonicalId('Netflix'), 'netflix');
+      expect(
+        PlatformAliases.referToSameService(
+          'Netflix',
+          'Netflix Standard with Ads',
+        ),
+        isTrue,
+      );
     });
 
     test('does not treat aliases as proof of availability', () {
@@ -87,6 +95,96 @@ void main() {
       );
     });
 
+    test('credits can disambiguate identical name and year', () {
+      expect(
+        uniqueVerifiedCandidate(
+          query: const TitleIdentity(
+            title: 'MARKED',
+            contentType: 'TV Series',
+            releaseYear: 2026,
+            director: 'Jane Director',
+          ),
+          candidates: const [
+            TitleCandidate(
+              name: 'MARKED',
+              year: 2026,
+              contentType: 'TV Series',
+              externalId: '1',
+              directors: ['Other Person'],
+            ),
+            TitleCandidate(
+              name: 'MARKED',
+              year: 2026,
+              contentType: 'TV Series',
+              externalId: '2',
+              directors: ['Jane Director'],
+            ),
+          ],
+        )?.externalId,
+        '2',
+      );
+    });
+
+    test('missing optional credits do not reject a valid match', () {
+      expect(
+        classifyTitleMatch(
+          query: const TitleIdentity(
+            title: 'MARKED',
+            contentType: 'TV Series',
+            releaseYear: 2026,
+            director: 'Jane Director',
+          ),
+          candidate: const TitleCandidate(
+            name: 'MARKED',
+            year: 2026,
+            contentType: 'TV Series',
+            externalId: '1',
+          ),
+        ),
+        MatchConfidence.verifiedMatch,
+      );
+    });
+
+    test('conflicting director downgrades a name-year match', () {
+      expect(
+        classifyTitleMatch(
+          query: const TitleIdentity(
+            title: 'MARKED',
+            contentType: 'TV Series',
+            releaseYear: 2026,
+            director: 'Jane Director',
+          ),
+          candidate: const TitleCandidate(
+            name: 'MARKED',
+            year: 2026,
+            contentType: 'TV Series',
+            directors: ['Someone Else'],
+          ),
+        ),
+        MatchConfidence.possibleMatch,
+      );
+    });
+
+    test('credits alone cannot verify a name-only candidate', () {
+      expect(
+        classifyTitleMatch(
+          query: const TitleIdentity(
+            title: 'MARKED',
+            contentType: 'TV Series',
+            releaseYear: 2026,
+            director: 'Jane Director',
+          ),
+          candidate: const TitleCandidate(
+            name: 'MARKED',
+            year: 2011,
+            contentType: 'TV Series',
+            directors: ['Jane Director'],
+          ),
+        ),
+        MatchConfidence.possibleMatch,
+      );
+    });
+
     test('ambiguous verified candidates become possible matches', () {
       expect(
         classifySearchResults(
@@ -124,7 +222,7 @@ void main() {
       );
 
       expect(updated.status, DistributionStatus.live);
-      expect(updated.statusMessage, 'Verified availability');
+      expect(updated.statusMessage, 'Detected on Relay');
       expect(updated.evidenceSource, 'TMDb Watch Providers');
       expect(updated.evidenceUrl, 'https://example.invalid/relay/marked');
       expect(updated.hasAvailabilityEvidence, isTrue);
@@ -141,7 +239,7 @@ void main() {
       );
 
       expect(updated.status, DistributionStatus.waiting);
-      expect(updated.statusMessage, 'Check failed');
+      expect(updated.statusMessage, 'Could not complete this check');
       expect(updated.lastCheckFailed, isTrue);
     });
 

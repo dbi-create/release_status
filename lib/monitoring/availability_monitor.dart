@@ -6,6 +6,12 @@ import 'package:release_status/monitoring/title_identity.dart';
 abstract class AvailabilityMonitor {
   const AvailabilityMonitor();
 
+  /// Stable id for this source. Used in architecture, not shown as jargon.
+  String get sourceId;
+
+  /// User-facing source name, such as "TMDb Watch Providers".
+  String get displayName;
+
   /// False when this prototype cannot contact an availability source.
   bool get isConfigured;
 
@@ -17,6 +23,12 @@ abstract class AvailabilityMonitor {
 
 class UnconfiguredAvailabilityMonitor implements AvailabilityMonitor {
   const UnconfiguredAvailabilityMonitor();
+
+  @override
+  String get sourceId => 'unconfigured';
+
+  @override
+  String get displayName => 'Not configured';
 
   @override
   bool get isConfigured => false;

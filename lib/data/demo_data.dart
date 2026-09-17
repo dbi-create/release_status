@@ -23,6 +23,7 @@ const List<ReleaseTitle> demoTitles = [
       PlatformStatus.waiting('Ofive+'),
       PlatformStatus.waiting('Relay'),
     ],
+    pinned: true,
   ),
   ReleaseTitle(
     id: 'ashen-field',
