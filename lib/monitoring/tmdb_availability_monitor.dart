@@ -679,9 +679,11 @@ class TmdbAvailabilityMonitor
     String licensedPlatform,
   ) {
     for (final listing in listings) {
-      if (PlatformAliases.referToSameService(
-        licensedPlatform,
-        listing.providerName,
+      if (PlatformAliases.sameChannel(
+        leftName: licensedPlatform,
+        rightName: listing.providerName,
+        rightUrl: listing.link,
+        rightProviderId: listing.providerId,
       )) {
         return listing;
       }

@@ -8,6 +8,8 @@ import 'package:release_status/widgets/platform_status_row.dart';
 import 'package:release_status/widgets/title_artwork.dart';
 import 'package:release_status/widgets/title_card.dart';
 
+const double _titlePosterWidth = 88;
+
 class TitleDetailScreen extends StatelessWidget {
   const TitleDetailScreen({super.key, required this.titleId});
 
@@ -55,8 +57,8 @@ class TitleDetailScreen extends StatelessWidget {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                TitleArtwork(title: title, size: 88),
-                const SizedBox(width: 20),
+                TitleArtwork(title: title, size: _titlePosterWidth),
+                const SizedBox(width: 16),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -85,54 +87,14 @@ class TitleDetailScreen extends StatelessWidget {
                     ],
                   ),
                 ),
-                TitlePinDeleteIcons(
-                  title: title,
-                  pinKey: const ValueKey<String>('pin-title-button'),
-                  deleteKey: const ValueKey<String>('delete-title-button'),
-                  enabled: !checking,
-                  onDelete: () => _confirmDelete(context, title),
-                ),
-              ],
-            ),
-            const SizedBox(height: 20),
-            Row(
-              children: [
-                Expanded(
-                  flex: 65,
-                  child: SizedBox(
-                    height: 56,
-                    child: FilledButton(
-                      key: const ValueKey<String>('check-status-button'),
-                      onPressed: checking
-                          ? null
-                          : () => catalog.checkTitle(title.id, monitor),
-                      child: FittedBox(
-                        fit: BoxFit.scaleDown,
-                        child: Text(
-                          checking ? 'Checking…' : 'Recheck Platform Status',
-                          textAlign: TextAlign.center,
-                          maxLines: 1,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
                 const SizedBox(width: 8),
-                Expanded(
-                  flex: 35,
-                  child: SizedBox(
-                    height: 56,
-                    child: FilledButton.tonal(
-                      key: const ValueKey<String>('edit-title-button'),
-                      onPressed: checking
-                          ? null
-                          : () => _openEdit(context, title),
-                      child: const Text(
-                        'Edit Title',
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-                  ),
+                _TitleDetailSideActions(
+                  title: title,
+                  enabled: !checking,
+                  checking: checking,
+                  onEdit: () => _openEdit(context, title),
+                  onRecheck: () => catalog.checkTitle(title.id, monitor),
+                  onDelete: () => _confirmDelete(context, title),
                 ),
               ],
             ),
@@ -174,7 +136,7 @@ class TitleDetailScreen extends StatelessWidget {
                 feedback: catalog.lastCheckFeedback,
               ),
             ],
-            const SizedBox(height: 24),
+            const SizedBox(height: 16),
             _OverallStatusPanel(title: title),
             const SizedBox(height: 32),
             Text(
@@ -225,6 +187,149 @@ class TitleDetailScreen extends StatelessWidget {
     final catalog = TitleCatalogScope.of(context);
     Navigator.of(context).pop();
     catalog.removeTitle(title.id);
+  }
+}
+
+class _TitleDetailSideActions extends StatelessWidget {
+  const _TitleDetailSideActions({
+    required this.title,
+    required this.enabled,
+    required this.checking,
+    required this.onEdit,
+    required this.onRecheck,
+    required this.onDelete,
+  });
+
+  final ReleaseTitle title;
+  final bool enabled;
+  final bool checking;
+  final VoidCallback onEdit;
+  final VoidCallback onRecheck;
+  final VoidCallback onDelete;
+
+  static const double _iconSize = 20;
+  static const double _pinIconSize = 22;
+  static const double _buttonSize = 28;
+
+  @override
+  Widget build(BuildContext context) {
+    final catalog = TitleCatalogScope.of(context);
+    final colorScheme = Theme.of(context).colorScheme;
+    return SizedBox(
+      height: _titlePosterWidth / tmdbPosterAspectRatio,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: colorScheme.surface,
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: colorScheme.outlineVariant),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 6),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              _SideActionButton(
+                buttonKey: const ValueKey<String>('pin-title-button'),
+                tooltip: title.pinned ? 'Unpin Title' : 'Pin Title',
+                icon: title.pinned ? Icons.push_pin : Icons.push_pin_outlined,
+                iconSize: _pinIconSize,
+                color: title.pinned ? kPinnedColor : colorScheme.onSurface,
+                enabled: enabled,
+                onPressed: () =>
+                    catalog.setTitlePinned(title.id, !title.pinned),
+              ),
+              _SideActionButton(
+                buttonKey: const ValueKey<String>('edit-title-button'),
+                tooltip: 'Edit Title',
+                icon: Icons.edit_outlined,
+                color: colorScheme.onSurface,
+                enabled: enabled,
+                onPressed: onEdit,
+              ),
+              _SideActionButton(
+                buttonKey: const ValueKey<String>('delete-title-button'),
+                tooltip: 'Delete Title',
+                icon: Icons.delete_outline,
+                color: colorScheme.error,
+                enabled: enabled,
+                onPressed: onDelete,
+              ),
+              _SideActionButton(
+                buttonKey: const ValueKey<String>('check-status-button'),
+                tooltip: checking ? 'Checking…' : 'Recheck Platform Status',
+                icon: Icons.refresh,
+                color: colorScheme.onSurface,
+                enabled: enabled,
+                checking: checking,
+                onPressed: onRecheck,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SideActionButton extends StatelessWidget {
+  const _SideActionButton({
+    required this.buttonKey,
+    required this.tooltip,
+    required this.icon,
+    required this.color,
+    required this.enabled,
+    required this.onPressed,
+    this.iconSize = _TitleDetailSideActions._iconSize,
+    this.checking = false,
+  });
+
+  final Key buttonKey;
+  final String tooltip;
+  final IconData icon;
+  final double iconSize;
+  final Color color;
+  final bool enabled;
+  final bool checking;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: _TitleDetailSideActions._buttonSize,
+      height: _TitleDetailSideActions._buttonSize,
+      child: IconButton(
+        key: buttonKey,
+        tooltip: tooltip,
+        padding: EdgeInsets.zero,
+        constraints: const BoxConstraints.tightFor(
+          width: _TitleDetailSideActions._buttonSize,
+          height: _TitleDetailSideActions._buttonSize,
+        ),
+        style: IconButton.styleFrom(
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          minimumSize: const Size(
+            _TitleDetailSideActions._buttonSize,
+            _TitleDetailSideActions._buttonSize,
+          ),
+          padding: EdgeInsets.zero,
+          foregroundColor: color,
+        ),
+        onPressed: enabled ? onPressed : null,
+        icon: checking
+            ? SizedBox(
+                width: iconSize,
+                height: iconSize,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: color,
+                ),
+              )
+            : FittedBox(
+                fit: BoxFit.contain,
+                child: Icon(icon, size: iconSize, color: color),
+              ),
+      ),
+    );
   }
 }
 

@@ -72,7 +72,7 @@ class TitleCard extends StatelessWidget {
                                   ),
                                   const SizedBox(height: 10),
                                   Text(
-                                    'LICENSED PLATFORMS: ${title.licensedPlatformCount}',
+                                    'LIVE PLATFORMS: ${title.liveOrOnAirPlatformCount}',
                                     style: textTheme.bodyMedium,
                                   ),
                                 ],
@@ -174,7 +174,7 @@ class TitleListTileCard extends StatelessWidget {
                                   ),
                                   const SizedBox(height: 6),
                                   Text(
-                                    'LICENSED PLATFORMS: ${title.licensedPlatformCount}',
+                                    'LIVE PLATFORMS: ${title.liveOrOnAirPlatformCount}',
                                     style: textTheme.bodyMedium,
                                   ),
                                 ],

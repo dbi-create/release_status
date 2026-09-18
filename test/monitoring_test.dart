@@ -21,7 +21,7 @@ void main() {
       find.byKey(const ValueKey<String>('check-status-button')),
       findsOneWidget,
     );
-    expect(find.text('Recheck Platform Status'), findsOneWidget);
+    expect(find.byTooltip('Recheck Platform Status'), findsOneWidget);
   });
 
   testWidgets('starting a check displays checking state', (tester) async {
@@ -34,7 +34,7 @@ void main() {
     await tester.tap(find.byKey(const ValueKey<String>('check-status-button')));
     await tester.pump();
 
-    expect(find.text('Checking…'), findsOneWidget);
+    expect(find.byTooltip('Checking…'), findsOneWidget);
     expect(
       find.byKey(const ValueKey<String>('checking-status-indicator')),
       findsOneWidget,
@@ -219,7 +219,7 @@ void main() {
     await tester.pageBack();
     await tester.pumpAndSettle();
 
-    expect(find.text('LICENSED PLATFORMS: 5'), findsOneWidget);
+    expect(find.text('LIVE PLATFORMS: 1'), findsOneWidget);
     expect(find.text('NOT LIVE: 4'), findsNothing);
   });
 

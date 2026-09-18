@@ -49,8 +49,8 @@ void main() {
     );
 
     expect(merged, hasLength(4));
-    expect(merged.first.platformName, 'Prime Video');
-    expect(merged.first.origin, PlatformOrigin.manual);
+    expect(merged.first.platformName, 'Amazon Prime Video');
+    expect(merged.first.origin, PlatformOrigin.automatic);
     expect(merged.first.status, DistributionStatus.live);
     expect(
       merged.map((platform) => platform.platformName),
@@ -67,6 +67,36 @@ void main() {
     );
     expect(hbo.status, DistributionStatus.originalNetwork);
     expect(hbo.origin, PlatformOrigin.automatic);
+  });
+
+  test('manual storefront URL merges with a later TMDb name', () {
+    final merged = applyDiscoveredPlatforms(
+      current: [
+        PlatformStatus.waiting('My Stream').copyWith(
+          evidenceUrl: 'https://watch.plex.tv/show/harbor-light',
+        ),
+      ],
+      listings: const [
+        DiscoveredAvailability(
+          displayName: 'Plex',
+          sourceName: 'TMDb Watch Providers',
+          sourceProviderId: '209',
+          listingUrl: 'https://www.justwatch.com/us/tv-show/harbor-light',
+        ),
+      ],
+      checkedAt: DateTime.utc(2026, 9, 16, 12),
+    );
+
+    expect(merged, hasLength(1));
+    expect(merged.single.platformName, 'Plex');
+    expect(merged.single.status, DistributionStatus.live);
+    expect(merged.single.origin, PlatformOrigin.automatic);
+    expect(merged.single.licenseRelationship, LicenseRelationship.unknown);
+    expect(merged.single.sourceProviderId, '209');
+    expect(
+      merged.single.evidenceUrl,
+      'https://watch.plex.tv/show/harbor-light',
+    );
   });
 
   testWidgets('picking a TMDb match loads US channels automatically', (

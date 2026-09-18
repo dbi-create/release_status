@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -345,13 +346,7 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _signInWithGoogle() async {
     await _run(() async {
       await signInToReleaseStatusWithGoogle(_client());
-      if (supportsNativeGoogleSignIn) {
-        await widget.onAuthenticated();
-      } else if (mounted) {
-        setState(() {
-          _info = 'Finish Google sign-in in the browser window.';
-        });
-      }
+      await widget.onAuthenticated();
     });
   }
 
@@ -363,6 +358,14 @@ class _LoginScreenState extends State<LoginScreen> {
     });
     try {
       await action();
+    } on GoogleSignInException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      if (error.code == GoogleSignInExceptionCode.canceled) {
+        return;
+      }
+      setState(() => _error = googleSignInUserMessage(error));
     } on AuthException catch (error) {
       if (!mounted) {
         return;

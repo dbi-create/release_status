@@ -28,6 +28,15 @@ const ALIASES: Record<string, string[]> = {
   relay: ['relay', 'relay.film', 'relay film'],
   netflix: ['netflix', 'netflix standard with ads', 'netflix basic with ads'],
 };
+const SHARED_CATALOG_HOSTS = ['justwatch.com', 'themoviedb.org'];
+const HOST_IDS: Record<string, string> = {
+  'amazon.com': 'amazon',
+  'primevideo.com': 'amazon',
+  'plex.tv': 'plex',
+  'watch.plex.tv': 'plex',
+  'netflix.com': 'netflix',
+  'relay.film': 'relay',
+};
 
 type Listing = {
   name: string;
@@ -117,6 +126,82 @@ function sameService(left: string, right: string): boolean {
   return normalizeName(left) === normalizeName(right);
 }
 
+function parseUrl(value?: string | null): URL | null {
+  const trimmed = (value ?? '').trim();
+  if (!trimmed) {
+    return null;
+  }
+  try {
+    return new URL(trimmed);
+  } catch {
+    return null;
+  }
+}
+
+function bareHost(host: string): string {
+  const lower = host.trim().toLowerCase();
+  return lower.startsWith('www.') ? lower.slice(4) : lower;
+}
+
+function isSharedCatalogHost(host: string): boolean {
+  return SHARED_CATALOG_HOSTS.some(
+    (catalog) => host === catalog || host.endsWith(`.${catalog}`),
+  );
+}
+
+function canonicalIdFromUrl(url?: string | null): string | null {
+  const parsed = parseUrl(url);
+  if (!parsed) {
+    return null;
+  }
+  const host = bareHost(parsed.hostname);
+  if (isSharedCatalogHost(host)) {
+    return null;
+  }
+  return HOST_IDS[host] ?? null;
+}
+
+function specificListingUrl(url?: string | null): string | null {
+  const parsed = parseUrl(url);
+  if (!parsed || isSharedCatalogHost(bareHost(parsed.hostname))) {
+    return null;
+  }
+  return `${parsed.protocol}//${parsed.host}${parsed.pathname}`.replace(/\/+$/, '');
+}
+
+function preferSpecificUrl(
+  current?: string | null,
+  incoming?: string | null,
+): string | null {
+  return specificListingUrl(current) ||
+    specificListingUrl(incoming) ||
+    (current?.trim() || null) ||
+    (incoming?.trim() || null);
+}
+
+function sameChannel(row: PlatformRow, listing: Listing): boolean {
+  if (row.source_provider_id && listing.providerId &&
+      row.source_provider_id === listing.providerId) {
+    return true;
+  }
+  if (sameService(row.platform_name, listing.name)) {
+    return true;
+  }
+  const rowHostId = canonicalIdFromUrl(row.evidence_url);
+  const listingHostId = canonicalIdFromUrl(listing.url);
+  const rowNameId = canonicalId(row.platform_name);
+  const listingNameId = canonicalId(listing.name);
+  if (rowHostId && (rowHostId === listingNameId || rowHostId === listingHostId)) {
+    return true;
+  }
+  if (listingHostId && listingHostId === rowNameId) {
+    return true;
+  }
+  const left = specificListingUrl(row.evidence_url);
+  const right = specificListingUrl(listing.url);
+  return !!(left && left === right);
+}
+
 function listingKey(listing: Listing): string {
   return listing.providerId || canonicalId(listing.name) || normalizeName(listing.name);
 }
@@ -162,16 +247,7 @@ function matchListing(
   row: PlatformRow,
   listings: Listing[],
 ): Listing | undefined {
-  return listings.find((listing) => {
-    if (
-      row.source_provider_id &&
-      listing.providerId &&
-      row.source_provider_id === listing.providerId
-    ) {
-      return true;
-    }
-    return sameService(row.platform_name, listing.name);
-  });
+  return listings.find((listing) => sameChannel(row, listing));
 }
 
 function applyFailure(row: PlatformRow, checkedAt: string, detail: string): PlatformRow {
@@ -184,38 +260,50 @@ function applyFailure(row: PlatformRow, checkedAt: string, detail: string): Plat
   };
 }
 
-function applyLive(row: PlatformRow, listing: Listing, checkedAt: string): PlatformRow {
+function adoptListing(row: PlatformRow, listing: Listing): PlatformRow {
+  const name = listing.name.trim();
   return {
     ...row,
+    platform_name: name || row.platform_name,
+    origin: 'automatic',
+    license_relationship: 'unknown',
+  };
+}
+
+function applyLive(row: PlatformRow, listing: Listing, checkedAt: string): PlatformRow {
+  const adopted = adoptListing(row, listing);
+  return {
+    ...adopted,
     status: 'live',
-    first_detected_at: row.first_detected_at ?? checkedAt,
+    first_detected_at: adopted.first_detected_at ?? checkedAt,
     last_checked_at: checkedAt,
     removed_at: null,
-    status_message: `Detected on ${row.platform_name}`,
+    status_message: `Detected on ${adopted.platform_name}`,
     status_detail: listing.detail,
     evidence_source: listing.source,
-    evidence_url: listing.url ?? row.evidence_url,
+    evidence_url: preferSpecificUrl(row.evidence_url, listing.url),
     last_monitoring_source: listing.source,
     last_match_confidence: 'verifiedMatch',
     last_check_failed: false,
     consecutive_verified_absences: 0,
     source_provider_id: listing.providerId ?? row.source_provider_id,
-    origin: row.origin || 'automatic',
-    history: withHistory(row, 'live', checkedAt, listing.source, listing.detail),
+    history: withHistory(adopted, 'live', checkedAt, listing.source, listing.detail),
   };
 }
 
 function applyNetwork(row: PlatformRow, listing: Listing, checkedAt: string): PlatformRow {
+  const adopted = adoptListing(row, listing);
   if (isUserConfirmed(row)) {
     return {
-      ...row,
+      ...adopted,
       last_checked_at: checkedAt,
       last_check_failed: false,
       source_provider_id: listing.providerId ?? row.source_provider_id,
+      evidence_url: preferSpecificUrl(row.evidence_url, listing.url),
     };
   }
   return {
-    ...row,
+    ...adopted,
     status: 'originalNetwork',
     last_checked_at: checkedAt,
     status_message: 'Original network',
@@ -224,8 +312,9 @@ function applyNetwork(row: PlatformRow, listing: Listing, checkedAt: string): Pl
     last_match_confidence: 'verifiedMatch',
     last_check_failed: false,
     source_provider_id: listing.providerId ?? row.source_provider_id,
+    evidence_url: preferSpecificUrl(row.evidence_url, listing.url),
     history: withHistory(
-      row,
+      adopted,
       'originalNetwork',
       checkedAt,
       listing.source,
@@ -359,7 +448,55 @@ function applyListings(
     }
     next.push(newFromListing(owner, titleId, listing, checkedAt));
   }
-  return next;
+  return collapseRows(next);
+}
+
+function samePlatformRow(left: PlatformRow, right: PlatformRow): boolean {
+  return sameChannel(left, {
+    name: right.platform_name,
+    live: right.status === 'live',
+    url: right.evidence_url ?? undefined,
+    providerId: right.source_provider_id ?? undefined,
+    detail: '',
+    source: '',
+  });
+}
+
+function collapseRows(rows: PlatformRow[]): PlatformRow[] {
+  const kept: PlatformRow[] = [];
+  for (const row of rows) {
+    const index = kept.findIndex((existing) => samePlatformRow(existing, row));
+    if (index < 0) {
+      kept.push(row);
+      continue;
+    }
+    kept[index] = preferRow(kept[index], row);
+  }
+  return kept;
+}
+
+function channelRank(row: PlatformRow): number {
+  if (row.status === 'live') {
+    return 3;
+  }
+  if (row.status === 'originalNetwork') {
+    return 2;
+  }
+  if (row.status === 'waiting') {
+    return 1;
+  }
+  return 0;
+}
+
+function preferRow(left: PlatformRow, right: PlatformRow): PlatformRow {
+  const primary = channelRank(right) > channelRank(left) ? right : left;
+  const secondary = primary === right ? left : right;
+  return {
+    ...primary,
+    first_detected_at: primary.first_detected_at ?? secondary.first_detected_at,
+    source_provider_id: primary.source_provider_id ?? secondary.source_provider_id,
+    evidence_url: preferSpecificUrl(primary.evidence_url, secondary.evidence_url),
+  };
 }
 
 async function tmdbJson(
@@ -652,10 +789,33 @@ async function handleCheck(req: Request): Promise<Response> {
         title.id as string,
         facts.error,
       ).filter((row) => row.platform_name.trim().length > 0);
+      const keepNames = new Set(next.map((row) => row.platform_name));
+      const stale = existing.filter((row) => {
+        if (keepNames.has(row.platform_name)) {
+          return false;
+        }
+        return next.some((kept) => samePlatformRow(kept, row));
+      });
+      for (const row of stale) {
+        await admin
+          .from('release_status_platforms')
+          .delete()
+          .eq('owner_user_id', row.owner_user_id)
+          .eq('title_id', row.title_id)
+          .eq('platform_name', row.platform_name);
+      }
       if (next.length > 0) {
+        const upsertRows = next.map((row) => {
+          const previous = existing.find((item) => item.id && item.id === row.id);
+          if (previous && previous.platform_name === row.platform_name) {
+            return row;
+          }
+          const { id: _id, ...rest } = row;
+          return rest;
+        });
         const { error: upsertError } = await admin
           .from('release_status_platforms')
-          .upsert(next, { onConflict: 'owner_user_id,title_id,platform_name' });
+          .upsert(upsertRows, { onConflict: 'owner_user_id,title_id,platform_name' });
         if (!upsertError) {
           updated += next.length;
         }

@@ -7,6 +7,7 @@ import 'package:release_status/models/platform_status.dart';
 import 'package:release_status/models/release_title.dart';
 import 'package:release_status/state/catalog_attention.dart';
 import 'package:release_status/state/title_catalog.dart';
+import 'package:release_status/storage/catalog_store.dart';
 
 void main() {
   test('dashboard totals count licensed, live, waiting, and removed', () {
@@ -173,5 +174,52 @@ void main() {
     );
     expect(settings.nextCheckDue, DateTime(2026, 9, 14));
     expect(settings.copyWith(monitoringEnabled: false).nextCheckDue, isNull);
+  });
+
+  test('catalog updated label uses the notifications date format', () {
+    expect(catalogUpdatedLabel(null), 'Updated: not yet');
+    expect(
+      catalogUpdatedLabel(DateTime(2026, 9, 18, 18)),
+      'Updated: 18 September 2026 | 6:00pm',
+    );
+    expect(
+      catalogUpdatedLabel(DateTime(2026, 1, 3, 0, 5)),
+      'Updated: 3 January 2026 | 12:05am',
+    );
+  });
+
+  testWidgets('notifications show last check to the left of Close', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1200, 1400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final checkedAt = DateTime(2026, 9, 18, 18);
+    await tester.pumpWidget(
+      ReleaseStatusApp(
+        catalogStore: MemoryCatalogStore(
+          initial: CatalogSnapshot.empty().copyWith(existedOnDisk: true),
+        ),
+        initialSnapshot: CatalogSnapshot.empty().copyWith(
+          existedOnDisk: true,
+          settings: AppSettings(lastCompletedCheckAt: checkedAt),
+        ),
+      ),
+    );
+    await tester.tap(
+      find.byKey(const ValueKey<String>('notifications-button')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Updated: 18 September 2026 | 6:00pm'), findsOneWidget);
+    final updatedRect = tester.getRect(
+      find.byKey(const ValueKey<String>('notifications-updated-label')),
+    );
+    final closeRect = tester.getRect(
+      find.byKey(const ValueKey<String>('close-notifications-button')),
+    );
+    expect(updatedRect.left, lessThan(closeRect.left));
   });
 }

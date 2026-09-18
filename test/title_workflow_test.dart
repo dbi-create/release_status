@@ -50,7 +50,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Harbor Light'), findsOneWidget);
-    expect(find.text('LICENSED PLATFORMS: 2'), findsWidgets);
+    expect(find.text('LIVE PLATFORMS: 2'), findsWidgets);
     expect(find.text('NOT LIVE: 0'), findsNothing);
   });
 

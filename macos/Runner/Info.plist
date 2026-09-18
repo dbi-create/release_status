@@ -18,6 +18,10 @@
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
 	<string>$(FLUTTER_BUILD_NAME)</string>
+	<key>GIDClientID</key>
+	<string>1028293927745-5vdln1lljl5dqohuk1nsc2pakavfo5mp.apps.googleusercontent.com</string>
+	<key>GIDServerClientID</key>
+	<string>1028293927745-5kmk1oloov9eaev6t9blhi1ak997n7fa.apps.googleusercontent.com</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
@@ -28,6 +32,16 @@
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>com.orbium.releaseStatus</string>
+			</array>
+		</dict>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>google-sign-in</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.1028293927745-5vdln1lljl5dqohuk1nsc2pakavfo5mp</string>
 			</array>
 		</dict>
 	</array>

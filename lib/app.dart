@@ -115,6 +115,7 @@ class _ReleaseStatusAppState extends State<ReleaseStatusApp> {
     }
     _boundUserId = userId;
     if (userId == null) {
+      await _catalog.cloudSync?.stopWatching();
       _catalog.cloudSync = null;
       unawaited(LiveAlertService.instance.listenForAccount(null));
       return;
@@ -131,17 +132,7 @@ class _ReleaseStatusAppState extends State<ReleaseStatusApp> {
   }
 
   Future<void> _runScheduledCheck() async {
-    final sync = _catalog.cloudSync;
-    if (sync != null && sync.isSignedIn) {
-      try {
-        final remote = await sync.pull();
-        if (remote != null) {
-          _catalog.applyCloudSnapshot(remote);
-        }
-      } on Object {
-        // Local catalog remains usable if the pull fails.
-      }
-    }
+    await _catalog.syncFromCloud();
     if (!scheduledCheckShouldRun(
       settings: _catalog.settings,
       monitorConfigured: _monitor.isConfigured,

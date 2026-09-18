@@ -232,6 +232,92 @@ void main() {
     expect(catalog.titleById('st')!.platforms, isEmpty);
   });
 
+  test('manual nickname merges with a later TMDb listing of the same URL', () {
+    final catalog = catalogWith([
+      emptyTitle(
+        platforms: [
+          PlatformStatus.waiting('My Stream').copyWith(
+            evidenceUrl: 'https://watch.plex.tv/show/harbor-light',
+          ),
+        ],
+      ),
+    ]);
+    catalog.applyDiscovery(
+      'st',
+      verifiedDiscovery(
+        platforms: [
+          const DiscoveredAvailability(
+            displayName: 'Plex',
+            sourceName: 'TMDb Watch Providers',
+            sourceProviderId: '209',
+            listingUrl: 'https://www.justwatch.com/us/tv-show/harbor-light',
+            detail: 'Listed as Plex.',
+          ),
+          const DiscoveredAvailability(
+            displayName: 'Netflix',
+            sourceName: 'TMDb Watch Providers',
+            sourceProviderId: '8',
+            listingUrl: 'https://www.justwatch.com/us/tv-show/harbor-light',
+            detail: 'Listed as Netflix.',
+          ),
+        ],
+      ),
+    );
+    final platforms = catalog.titleById('st')!.platforms;
+    expect(platforms, hasLength(2));
+    final plex = platforms.firstWhere(
+      (platform) => platform.platformName == 'Plex',
+    );
+    expect(plex.status, DistributionStatus.live);
+    expect(plex.origin, PlatformOrigin.automatic);
+    expect(plex.licenseRelationship, LicenseRelationship.unknown);
+    expect(plex.sourceProviderId, '209');
+    expect(plex.evidenceUrl, 'https://watch.plex.tv/show/harbor-light');
+    expect(
+      platforms.map((platform) => platform.platformName),
+      isNot(contains('My Stream')),
+    );
+    expect(
+      platforms.map((platform) => platform.platformName),
+      contains('Netflix'),
+    );
+  });
+
+  test('nickname holder and official TMDb name collapse to one row', () {
+    final catalog = catalogWith([
+      emptyTitle(
+        platforms: [
+          PlatformStatus.waiting('My Stream').copyWith(
+            evidenceUrl: 'https://watch.plex.tv/show/harbor-light',
+          ),
+          PlatformStatus.waiting('Plex'),
+        ],
+      ),
+    ]);
+    catalog.applyDiscovery(
+      'st',
+      verifiedDiscovery(
+        platforms: [
+          const DiscoveredAvailability(
+            displayName: 'Plex',
+            sourceName: 'TMDb Watch Providers',
+            sourceProviderId: '209',
+            listingUrl: 'https://www.justwatch.com/us/tv-show/harbor-light',
+          ),
+        ],
+      ),
+    );
+    final platforms = catalog.titleById('st')!.platforms;
+    expect(platforms, hasLength(1));
+    expect(platforms.single.platformName, 'Plex');
+    expect(platforms.single.origin, PlatformOrigin.automatic);
+    expect(platforms.single.sourceProviderId, '209');
+    expect(
+      platforms.single.evidenceUrl,
+      'https://watch.plex.tv/show/harbor-light',
+    );
+  });
+
   test('unknown provider can be added automatically', () {
     final catalog = catalogWith([emptyTitle()]);
     catalog.applyDiscovery(
@@ -347,14 +433,21 @@ void main() {
       ),
     );
     expect(catalog.titleById('st')!.platforms, hasLength(1));
-    expect(catalog.titleById('st')!.platforms.single.platformName, 'Amazon');
+    expect(
+      catalog.titleById('st')!.platforms.single.platformName,
+      'Prime Video',
+    );
+    expect(
+      catalog.titleById('st')!.platforms.single.origin,
+      PlatformOrigin.automatic,
+    );
     expect(
       catalog.titleById('st')!.platforms.single.status,
       DistributionStatus.live,
     );
   });
 
-  test('manual Plex plus automatic PLEX merges into one MANUAL LIVE row', () {
+  test('manual Plex plus automatic PLEX merges into one TMDb LIVE row', () {
     final catalog = catalogWith([
       emptyTitle(platforms: [PlatformStatus.waiting('Plex')]),
     ]);
@@ -364,11 +457,11 @@ void main() {
     );
     final platforms = catalog.titleById('st')!.platforms;
     expect(platforms, hasLength(1));
-    expect(platforms.single.platformName, 'Plex');
-    expect(platforms.single.origin, PlatformOrigin.manual);
+    expect(platforms.single.platformName, 'PLEX');
+    expect(platforms.single.origin, PlatformOrigin.automatic);
     expect(
       platforms.single.licenseRelationship,
-      LicenseRelationship.confirmedByUser,
+      LicenseRelationship.unknown,
     );
     expect(platforms.single.status, DistributionStatus.live);
     expect(platforms.single.firstDetectedAt, checkedAt);
@@ -462,6 +555,41 @@ void main() {
     );
     expect(catalog.lastCheckFeedback!.newlyDiscoveredNames, ['Plex', 'Tubi']);
     expect(catalog.lastCheckFeedback!.lookedUpPublicListings, isTrue);
+  });
+
+  test('overwriting a LIVE holder with the TMDb name does not re-alert', () async {
+    final live = applyMonitoringResult(
+      PlatformStatus.waiting('My Stream').copyWith(
+        evidenceUrl: 'https://watch.plex.tv/show/harbor-light',
+      ),
+      MonitoringResult.verifiedLive(
+        platformName: 'My Stream',
+        checkedAt: checkedAt,
+        evidenceSource: listingUrlAvailabilitySource,
+        evidenceUrl: 'https://watch.plex.tv/show/harbor-light',
+        sourceName: listingUrlAvailabilitySource,
+      ),
+    );
+    final catalog = catalogWith([emptyTitle(platforms: [live])]);
+    await catalog.checkTitle(
+      'st',
+      _ScriptedDiscoveryMonitor(
+        discovery: verifiedDiscovery(
+          platforms: [
+            const DiscoveredAvailability(
+              displayName: 'Plex',
+              sourceName: 'TMDb Watch Providers',
+              sourceProviderId: '209',
+              listingUrl: 'https://www.justwatch.com/us/tv-show/harbor-light',
+            ),
+          ],
+        ),
+      ),
+    );
+    final platform = catalog.titleById('st')!.platforms.single;
+    expect(platform.platformName, 'Plex');
+    expect(platform.status, DistributionStatus.live);
+    expect(catalog.lastCheckFeedback!.nowLiveNames, isEmpty);
   });
 
   test('Check All discovers platforms for every title', () async {

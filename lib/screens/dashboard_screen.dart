@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:release_status/models/app_settings.dart';
 import 'package:release_status/models/release_title.dart';
 import 'package:release_status/monitoring/availability_monitor.dart';
 import 'package:release_status/state/catalog_attention.dart';
@@ -184,7 +185,26 @@ Future<void> openCatalogNotifications(
                       ),
                     ),
             ),
+            actionsAlignment: MainAxisAlignment.spaceBetween,
             actions: [
+              Padding(
+                padding: const EdgeInsets.only(left: 8),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 280),
+                  child: Text(
+                    key: const ValueKey<String>('notifications-updated-label'),
+                    catalogUpdatedLabel(
+                      catalog.settings.lastCompletedCheckAt,
+                    ),
+                    style: Theme.of(dialogContext).textTheme.bodySmall
+                        ?.copyWith(
+                          color: Theme.of(
+                            dialogContext,
+                          ).colorScheme.onSurfaceVariant,
+                        ),
+                  ),
+                ),
+              ),
               TextButton(
                 key: const ValueKey<String>('close-notifications-button'),
                 onPressed: () => Navigator.of(dialogContext).pop(),

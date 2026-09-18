@@ -56,6 +56,25 @@ void main() {
     expect(catalog.checkProgress!.label, contains('2 now live'));
   });
 
+  test('check title records the last catalog update time', () async {
+    final catalog = TitleCatalog(
+      initialTitles: const [
+        ReleaseTitle(
+          id: 'a',
+          name: 'Alpha',
+          releaseYear: 2020,
+          contentType: 'Movie',
+          placeholderColor: Color(0xFF3A4A63),
+          platforms: [PlatformStatus.waiting('Netflix')],
+        ),
+      ],
+    );
+
+    expect(catalog.settings.lastCompletedCheckAt, isNull);
+    await catalog.checkTitle('a', _RecordingMonitor());
+    expect(catalog.settings.lastCompletedCheckAt, isNotNull);
+  });
+
   test('check all notifies when platforms become live', () async {
     final monitor = _RecordingMonitor();
     final alerts = <LiveAlert>[];

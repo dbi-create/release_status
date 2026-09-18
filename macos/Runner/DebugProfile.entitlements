@@ -14,6 +14,10 @@
 	<array>
 		<string>Default</string>
 	</array>
+	<key>keychain-access-groups</key>
+	<array>
+		<string>$(AppIdentifierPrefix)com.google.GIDSignIn</string>
+	</array>
 	<key>aps-environment</key>
 	<string>production</string>
 </dict>

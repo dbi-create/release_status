@@ -512,14 +512,28 @@ class _TitleFormScreenState extends State<TitleFormScreen> {
                     Expanded(
                       child: Text(
                         'Licensed Platforms',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: textTheme.titleLarge?.copyWith(
                           fontWeight: FontWeight.w600,
+                          fontSize:
+                              (textTheme.titleLarge?.fontSize ?? 22) - 2,
+                          height: 1.1,
                         ),
                       ),
                     ),
                     TextButton(
                       key: const ValueKey<String>('add-manual-channel-button'),
                       onPressed: _isSaving ? null : _openManualChannelDialog,
+                      style: TextButton.styleFrom(
+                        visualDensity: VisualDensity.compact,
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        textStyle: textTheme.labelLarge?.copyWith(
+                          fontSize:
+                              (textTheme.labelLarge?.fontSize ?? 14) - 1,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                       child: const Text('+ Manual Channel'),
                     ),
                   ],
@@ -633,6 +647,7 @@ class _TitleFormScreenState extends State<TitleFormScreen> {
       _platformsError = null;
       _platforms = [..._platforms, added];
     });
+    _persistPlatformsIfEditing();
   }
 
   Future<void> _removePlatform(int index) async {
@@ -675,6 +690,7 @@ class _TitleFormScreenState extends State<TitleFormScreen> {
         _platformsError = null;
       }
     });
+    _persistPlatformsIfEditing();
   }
 
   Future<void> _removeLiveStatus(int index) async {
@@ -717,6 +733,19 @@ class _TitleFormScreenState extends State<TitleFormScreen> {
             _platforms[i],
       ];
     });
+    _persistPlatformsIfEditing();
+  }
+
+  void _persistPlatformsIfEditing() {
+    final existing = widget.existingTitle;
+    if (existing == null) {
+      return;
+    }
+    final catalog = TitleCatalogScope.of(context);
+    final current = catalog.titleById(existing.id) ?? existing;
+    catalog.updateTitle(
+      current.copyWith(platforms: List<PlatformStatus>.from(_platforms)),
+    );
   }
 
   void _save() {

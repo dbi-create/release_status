@@ -29,6 +29,20 @@ class PlatformAliases {
     },
   };
 
+  static const Set<String> _sharedCatalogHosts = {
+    'justwatch.com',
+    'themoviedb.org',
+  };
+
+  static const Map<String, String> _hostIds = {
+    'amazon.com': 'amazon',
+    'primevideo.com': 'amazon',
+    'plex.tv': 'plex',
+    'watch.plex.tv': 'plex',
+    'netflix.com': 'netflix',
+    'relay.film': 'relay',
+  };
+
   static String normalize(String value) {
     return value
         .trim()
@@ -57,5 +71,102 @@ class PlatformAliases {
       return leftId == rightId;
     }
     return normalize(left) == normalize(right);
+  }
+
+  /// Same channel: TMDb provider id, name alias, specific listing URL, or
+  /// a known storefront host. JustWatch catalog pages are not unique.
+  static bool sameChannel({
+    required String leftName,
+    String? leftUrl,
+    String? leftProviderId,
+    required String rightName,
+    String? rightUrl,
+    String? rightProviderId,
+  }) {
+    final leftId = leftProviderId?.trim();
+    final rightId = rightProviderId?.trim();
+    if (leftId != null &&
+        leftId.isNotEmpty &&
+        rightId != null &&
+        rightId.isNotEmpty &&
+        leftId == rightId) {
+      return true;
+    }
+    if (referToSameService(leftName, rightName)) {
+      return true;
+    }
+    final leftHostId = canonicalIdFromUrl(leftUrl);
+    final rightHostId = canonicalIdFromUrl(rightUrl);
+    final leftNameId = canonicalId(leftName);
+    final rightNameId = canonicalId(rightName);
+    if (leftHostId != null &&
+        (leftHostId == rightNameId || leftHostId == rightHostId)) {
+      return true;
+    }
+    if (rightHostId != null && rightHostId == leftNameId) {
+      return true;
+    }
+    final leftNorm = specificListingUrl(leftUrl);
+    final rightNorm = specificListingUrl(rightUrl);
+    return leftNorm != null && leftNorm == rightNorm;
+  }
+
+  /// Keep a user-pasted storefront URL instead of TMDb's shared JustWatch link.
+  static String? preferSpecificListingUrl(String? current, String? incoming) {
+    return specificListingUrl(current) ??
+        specificListingUrl(incoming) ??
+        _trimmedOrNull(current) ??
+        _trimmedOrNull(incoming);
+  }
+
+  static String? canonicalIdFromUrl(String? url) {
+    final host = _host(url);
+    if (host == null || _isSharedCatalogHost(host)) {
+      return null;
+    }
+    return _hostIds[host];
+  }
+
+  static String? specificListingUrl(String? url) {
+    final parsed = _parseUrl(url);
+    if (parsed == null || _isSharedCatalogHost(_bareHost(parsed.host))) {
+      return null;
+    }
+    return '${parsed.scheme}://${parsed.host}${parsed.path}'.replaceAll(
+      RegExp(r'/+$'),
+      '',
+    );
+  }
+
+  static String? _trimmedOrNull(String? value) {
+    final trimmed = value?.trim() ?? '';
+    return trimmed.isEmpty ? null : trimmed;
+  }
+
+  static Uri? _parseUrl(String? url) {
+    final trimmed = url?.trim() ?? '';
+    if (trimmed.isEmpty) {
+      return null;
+    }
+    return Uri.tryParse(trimmed);
+  }
+
+  static String? _host(String? url) {
+    final parsed = _parseUrl(url);
+    if (parsed == null) {
+      return null;
+    }
+    return _bareHost(parsed.host);
+  }
+
+  static String _bareHost(String host) {
+    final lower = host.trim().toLowerCase();
+    return lower.startsWith('www.') ? lower.substring(4) : lower;
+  }
+
+  static bool _isSharedCatalogHost(String host) {
+    return _sharedCatalogHosts.any(
+      (catalog) => host == catalog || host.endsWith('.$catalog'),
+    );
   }
 }

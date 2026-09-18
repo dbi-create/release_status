@@ -15,7 +15,7 @@ void main() {
     expect(find.text('YOUR STATUS'), findsOneWidget);
     expect(find.text('PINNED (1)'), findsOneWidget);
     expect(find.text('MARKED'), findsOneWidget);
-    expect(find.text('LICENSED PLATFORMS: 5'), findsOneWidget);
+    expect(find.text('LIVE PLATFORMS: 0'), findsOneWidget);
     expect(find.text('ADDED TITLES'), findsOneWidget);
     expect(find.text('LIVE CHANNELS'), findsOneWidget);
     expect(find.text('NOT LIVE: 5'), findsNothing);
@@ -56,6 +56,11 @@ void main() {
     expect(find.text('Never checked'), findsNothing);
     expect(find.text('MARKED has not been checked yet'), findsNothing);
     expect(find.text('No notifications right now.'), findsOneWidget);
+    expect(find.text('Updated: not yet'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey<String>('notifications-updated-label')),
+      findsOneWidget,
+    );
 
     await tester.tap(find.byKey(const ValueKey<String>('close-notifications-button')));
     await tester.pumpAndSettle();
@@ -94,7 +99,7 @@ void main() {
       find.text(
         'A private catalog of titles you own or control. Pin any of them to the dashboard.',
       ),
-      findsOneWidget,
+      findsNothing,
     );
   });
 
@@ -109,7 +114,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Platform Status'), findsOneWidget);
-    expect(find.text('Recheck Platform Status'), findsOneWidget);
+    expect(find.byTooltip('Recheck Platform Status'), findsOneWidget);
     expect(find.text('0 of 5 platforms live', findRichText: true), findsWidgets);
     expect(find.textContaining('Amazon'), findsWidgets);
     expect(find.textContaining('PLEX'), findsOneWidget);

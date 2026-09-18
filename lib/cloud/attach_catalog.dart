@@ -9,11 +9,15 @@ Future<void> attachSignedInCatalog(TitleCatalog catalog) async {
   if (client == null || client.auth.currentUser == null) {
     return;
   }
+  await catalog.cloudSync?.stopWatching();
   catalog.cloudSync = CloudCatalogSync(client);
+  await catalog.persistCompleted;
+  final epoch = catalog.syncRevision;
   final remote = await catalog.cloudSync!.pull();
   if (remote != null && remote.titles.isNotEmpty) {
-    catalog.applyCloudSnapshot(remote);
-    return;
+    catalog.applyCloudSnapshot(remote, pullEpoch: epoch);
+  } else {
+    await catalog.syncToCloud();
   }
-  await catalog.syncToCloud();
+  await catalog.cloudSync?.watch(catalog.syncFromCloud);
 }

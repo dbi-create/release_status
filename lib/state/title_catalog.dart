@@ -12,6 +12,7 @@ import 'package:release_status/models/release_title.dart';
 import 'package:release_status/monitoring/apply_monitoring_result.dart';
 import 'package:release_status/notifications/live_alert.dart';
 import 'package:release_status/monitoring/availability_monitor.dart';
+import 'package:release_status/monitoring/discovered_listings.dart';
 import 'package:release_status/monitoring/discovery_monitor.dart';
 import 'package:release_status/monitoring/discovery_result.dart';
 import 'package:release_status/monitoring/monitoring_result.dart';
@@ -19,6 +20,7 @@ import 'package:release_status/monitoring/platform_aliases.dart';
 import 'package:release_status/monitoring/removal_policy.dart';
 import 'package:release_status/monitoring/request_policy.dart';
 import 'package:release_status/state/catalog_attention.dart';
+import 'package:release_status/cloud/catalog_sync_merge.dart';
 import 'package:release_status/cloud/cloud_catalog_sync.dart';
 import 'package:release_status/storage/catalog_backup.dart';
 import 'package:release_status/storage/catalog_codec.dart';
@@ -113,7 +115,8 @@ class TitleCatalog extends ChangeNotifier {
     _createdCount = snapshot?.createdCount ?? 0;
     _settings = snapshot?.settings ?? const AppSettings();
     if (store != null && (snapshot == null || !snapshot.existedOnDisk)) {
-      _writeQueue = _writeQueue.then((_) => _persist());
+      final pending = this.snapshot;
+      _writeQueue = _writeQueue.then((_) => _persist(pending, _revision));
     }
   }
 
@@ -131,6 +134,10 @@ class TitleCatalog extends ChangeNotifier {
   CatalogCheckProgress? _checkProgress;
   CheckFeedback? _lastCheckFeedback;
   Future<void> _writeQueue = Future<void>.value();
+  int _revision = 0;
+  bool _dirty = false;
+  Set<String> _syncedTitleIds = {};
+  Set<String> _syncedPlatformKeys = {};
 
   List<ReleaseTitle> get titles => List<ReleaseTitle>.unmodifiable(_titles);
 
@@ -151,6 +158,8 @@ class TitleCatalog extends ChangeNotifier {
 
   /// Completes when outstanding local writes finish.
   Future<void> get persistCompleted => _writeQueue;
+
+  int get syncRevision => _revision;
 
   int get totalTitleCount => _titles.length;
 
@@ -469,10 +478,10 @@ class TitleCatalog extends ChangeNotifier {
     }
 
     final checkedAt = discovery.checkedAt ?? DateTime.now();
-    final updatedPlatforms = <PlatformStatus>[
+    var updatedPlatforms = collapseDuplicateChannels([
       for (final platform in title.platforms)
         _updatedExistingFromDiscovery(platform, discovery, checkedAt),
-    ];
+    ]);
     final newlyAdded = <String>[];
     for (final listing in discovery.platforms) {
       if (_hasPlatform(updatedPlatforms, listing)) {
@@ -515,6 +524,7 @@ class TitleCatalog extends ChangeNotifier {
         ).copyWith(sourceProviderId: listing.sourceProviderId),
       );
     }
+    updatedPlatforms = collapseDuplicateChannels(updatedPlatforms);
 
     updateTitle(
       title.copyWith(
@@ -581,6 +591,8 @@ class TitleCatalog extends ChangeNotifier {
     notifyListeners();
     try {
       await _checkSingleTitle(title, monitor);
+      _settings = _settings.copyWith(lastCompletedCheckAt: DateTime.now());
+      await _persistCurrent();
       await _emitWentLive(_newLiveAlerts(previouslyLive));
     } catch (_) {
       // Individual platform rows already record check failures.
@@ -643,7 +655,7 @@ class TitleCatalog extends ChangeNotifier {
         nowLiveNames: nowLive,
         completed: true,
       );
-      await _persist();
+      await _persistCurrent();
       await _emitWentLive(nowLiveAlerts);
     } finally {
       _checking = false;
@@ -678,10 +690,10 @@ class TitleCatalog extends ChangeNotifier {
     }
 
     if (discovery != null && discovery.isVerified) {
-      final before = {
+      final before = [
         for (final platform in title.platforms)
-          if (platform.status == DistributionStatus.live) platform.platformName,
-      };
+          if (platform.status == DistributionStatus.live) platform,
+      ];
       // TMDb watch providers can go LIVE. TV networks are added as AIRS ON.
       final added = applyDiscovery(title.id, discovery);
       final after = titleById(title.id);
@@ -689,7 +701,7 @@ class TitleCatalog extends ChangeNotifier {
         if (after != null)
           for (final platform in after.platforms)
             if (platform.status == DistributionStatus.live &&
-                !before.contains(platform.platformName))
+                !_alreadyLive(before, platform))
               platform.platformName,
       ];
       _lastCheckFeedback = CheckFeedback(
@@ -746,12 +758,19 @@ class TitleCatalog extends ChangeNotifier {
     DateTime checkedAt,
   ) {
     final listing = _listingForPlatform(discovery.platforms, platform);
+    final current = listing == null
+        ? platform
+        : adoptDiscoveredListing(platform, listing);
     var updated = applyMonitoringResult(
-      platform,
-      _resultForExistingPlatform(platform, discovery, checkedAt),
+      current,
+      _resultForExistingPlatform(current, discovery, checkedAt),
       removalPolicy: removalPolicy,
     ).copyWith(
-      sourceProviderId: listing?.sourceProviderId ?? platform.sourceProviderId,
+      sourceProviderId: listing?.sourceProviderId ?? current.sourceProviderId,
+      evidenceUrl: PlatformAliases.preferSpecificListingUrl(
+        platform.evidenceUrl,
+        listing?.listingUrl,
+      ),
     );
     if (listing != null &&
         !listing.countsAsLiveEvidence &&
@@ -851,46 +870,105 @@ class TitleCatalog extends ChangeNotifier {
   }
 
   bool _samePlatform(PlatformStatus platform, DiscoveredAvailability listing) {
-    if (platform.sourceProviderId != null &&
-        listing.sourceProviderId != null &&
-        platform.sourceProviderId == listing.sourceProviderId) {
-      return true;
-    }
-    return PlatformAliases.referToSameService(
-      platform.platformName,
-      listing.displayName,
+    return PlatformAliases.sameChannel(
+      leftName: platform.platformName,
+      leftUrl: platform.evidenceUrl,
+      leftProviderId: platform.sourceProviderId,
+      rightName: listing.displayName,
+      rightUrl: listing.listingUrl,
+      rightProviderId: listing.sourceProviderId,
     );
   }
 
-  void applyCloudSnapshot(CatalogSnapshot snapshot) {
-    _titles = List<ReleaseTitle>.from(snapshot.titles);
-    _createdCount = snapshot.createdCount;
-    _settings = snapshot.settings;
+  void applyCloudSnapshot(CatalogSnapshot snapshot, {int? pullEpoch}) {
+    final stale = pullEpoch != null && pullEpoch != _revision;
+    if (_dirty || stale || _syncedTitleIds.isNotEmpty || _syncedPlatformKeys.isNotEmpty) {
+      final merged = mergeRemoteCatalog(
+        local: this.snapshot,
+        remote: snapshot,
+        syncedTitleIds: _syncedTitleIds,
+        syncedPlatformKeys: _syncedPlatformKeys,
+      );
+      _titles = List<ReleaseTitle>.from(merged.titles);
+      if (merged.createdCount > _createdCount) {
+        _createdCount = merged.createdCount;
+      }
+    } else {
+      _titles = List<ReleaseTitle>.from(snapshot.titles);
+      _createdCount = snapshot.createdCount;
+      _settings = snapshot.settings;
+    }
+    _rememberSynced(snapshot.titles);
     notifyListeners();
     final catalogStore = store;
     if (catalogStore != null) {
-      _writeQueue = _writeQueue.then((_) => catalogStore.save(this.snapshot));
+      final toSave = this.snapshot;
+      _writeQueue = _writeQueue.then((_) => catalogStore.save(toSave));
     }
   }
 
-  void _commit() {
-    notifyListeners();
-    _writeQueue = _writeQueue.then((_) => _persist());
-  }
-
-  Future<void> _persist() async {
-    final catalogStore = store;
-    if (catalogStore == null) {
-      return;
-    }
-    await catalogStore.save(snapshot);
+  Future<void> syncFromCloud() async {
+    await persistCompleted;
     final sync = cloudSync;
     if (sync == null || !sync.isSignedIn) {
       return;
     }
+    final epoch = _revision;
     try {
-      await sync.push(snapshot);
+      final remote = await sync.pull();
+      if (remote == null) {
+        return;
+      }
+      applyCloudSnapshot(remote, pullEpoch: epoch);
       lastCloudError = null;
+    } on Object catch (error) {
+      lastCloudError = '$error';
+    }
+  }
+
+  void _commit() {
+    _dirty = true;
+    _revision += 1;
+    notifyListeners();
+    final pending = snapshot;
+    final revision = _revision;
+    _writeQueue = _writeQueue.then((_) => _persist(pending, revision));
+  }
+
+  Future<void> _persistCurrent() async {
+    _dirty = true;
+    _revision += 1;
+    final pending = snapshot;
+    final revision = _revision;
+    _writeQueue = _writeQueue.then((_) => _persist(pending, revision));
+    await persistCompleted;
+  }
+
+  Future<void> _persist(CatalogSnapshot pending, int revision) async {
+    if (revision != _revision) {
+      return;
+    }
+    final catalogStore = store;
+    if (catalogStore != null) {
+      await catalogStore.save(pending);
+    }
+    final sync = cloudSync;
+    if (sync == null || !sync.isSignedIn) {
+      if (revision == _revision) {
+        _dirty = false;
+      }
+      return;
+    }
+    try {
+      await sync.push(
+        pending,
+        knownTitleIds: _syncedTitleIds,
+        knownPlatformKeys: _syncedPlatformKeys,
+      );
+      lastCloudError = null;
+      if (revision == _revision) {
+        _dirty = false;
+      }
     } on Object catch (error) {
       lastCloudError = '$error';
     }
@@ -902,12 +980,22 @@ class TitleCatalog extends ChangeNotifier {
       return;
     }
     try {
-      await sync.push(snapshot);
+      await sync.push(
+        snapshot,
+        knownTitleIds: _syncedTitleIds,
+        knownPlatformKeys: _syncedPlatformKeys,
+      );
       lastCloudError = null;
+      _dirty = false;
     } on Object catch (error) {
       lastCloudError = '$error';
       rethrow;
     }
+  }
+
+  void _rememberSynced(Iterable<ReleaseTitle> titles) {
+    _syncedTitleIds = catalogTitleKeys(titles);
+    _syncedPlatformKeys = catalogPlatformKeys(titles);
   }
 
   String? _optionalId(String? value) {
@@ -918,21 +1006,21 @@ class TitleCatalog extends ChangeNotifier {
     return trimmed;
   }
 
-  Set<String> _livePlatformKeys() {
+  Set<_LiveMark> _livePlatformKeys() {
     return {
       for (final title in _titles)
         for (final platform in title.platforms)
           if (platform.status == DistributionStatus.live)
-            '${title.id}|${platform.platformName}',
+            _LiveMark(titleId: title.id, platform: platform),
     };
   }
 
-  List<LiveAlert> _newLiveAlerts(Set<String> previouslyLive) {
+  List<LiveAlert> _newLiveAlerts(Set<_LiveMark> previouslyLive) {
     return [
       for (final title in _titles)
         for (final platform in title.platforms)
           if (platform.status == DistributionStatus.live &&
-              !previouslyLive.contains('${title.id}|${platform.platformName}'))
+              !previouslyLive.any((mark) => mark.matches(title.id, platform)))
             LiveAlert(
               titleId: title.id,
               titleName: title.name,
@@ -941,11 +1029,49 @@ class TitleCatalog extends ChangeNotifier {
     ];
   }
 
+  bool _alreadyLive(Iterable<PlatformStatus> previouslyLive, PlatformStatus platform) {
+    return previouslyLive.any(
+      (live) => PlatformAliases.sameChannel(
+        leftName: live.platformName,
+        leftUrl: live.evidenceUrl,
+        leftProviderId: live.sourceProviderId,
+        rightName: platform.platformName,
+        rightUrl: platform.evidenceUrl,
+        rightProviderId: platform.sourceProviderId,
+      ),
+    );
+  }
+
   Future<void> _emitWentLive(List<LiveAlert> alerts) async {
     if (alerts.isEmpty || !_settings.liveAlertsEnabled) {
       return;
     }
     await onTitlesWentLive?.call(alerts);
+  }
+
+  @override
+  void dispose() {
+    cloudSync?.stopWatching();
+    super.dispose();
+  }
+}
+
+class _LiveMark {
+  const _LiveMark({required this.titleId, required this.platform});
+
+  final String titleId;
+  final PlatformStatus platform;
+
+  bool matches(String titleId, PlatformStatus other) {
+    return this.titleId == titleId &&
+        PlatformAliases.sameChannel(
+          leftName: platform.platformName,
+          leftUrl: platform.evidenceUrl,
+          leftProviderId: platform.sourceProviderId,
+          rightName: other.platformName,
+          rightUrl: other.evidenceUrl,
+          rightProviderId: other.sourceProviderId,
+        );
   }
 }
 

@@ -91,3 +91,29 @@ class AppSettings {
     );
   }
 }
+
+/// Last catalog check, shown in Notifications next to Close.
+String catalogUpdatedLabel(DateTime? checkedAt) {
+  if (checkedAt == null) {
+    return 'Updated: not yet';
+  }
+  const months = [
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December',
+  ];
+  final local = checkedAt.toLocal();
+  final hour12 = local.hour % 12 == 0 ? 12 : local.hour % 12;
+  final minute = local.minute.toString().padLeft(2, '0');
+  final period = local.hour >= 12 ? 'pm' : 'am';
+  return 'Updated: ${local.day} ${months[local.month - 1]} ${local.year} | $hour12:$minute$period';
+}

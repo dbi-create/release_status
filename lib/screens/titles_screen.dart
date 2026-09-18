@@ -72,14 +72,6 @@ class _TitlesScreenState extends State<TitlesScreen> {
                           letterSpacing: -0.4,
                         ),
                       ),
-                      const SizedBox(height: 6),
-                      Text(
-                        'A private catalog of titles you own or control. Pin any of them to the dashboard.',
-                        style: textTheme.titleMedium?.copyWith(
-                          color: colorScheme.onSurfaceVariant,
-                          height: 1.35,
-                        ),
-                      ),
                     ],
                   ),
                 ),

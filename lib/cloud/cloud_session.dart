@@ -9,8 +9,12 @@ Future<void> initializeReleaseStatusCloud() async {
   if (!CloudConfig.isConfigured) {
     return;
   }
-  if (Supabase.instance.isInitialized) {
-    return;
+  try {
+    if (Supabase.instance.isInitialized) {
+      return;
+    }
+  } on AssertionError {
+    // instance access asserts until initialize() has run.
   }
   await Supabase.initialize(
     url: CloudConfig.url,
@@ -18,8 +22,16 @@ Future<void> initializeReleaseStatusCloud() async {
   );
 }
 
-bool get isReleaseStatusCloudReady =>
-    CloudConfig.isConfigured && Supabase.instance.isInitialized;
+bool get isReleaseStatusCloudReady {
+  if (!CloudConfig.isConfigured) {
+    return false;
+  }
+  try {
+    return Supabase.instance.isInitialized;
+  } on AssertionError {
+    return false;
+  }
+}
 
 SupabaseClient? releaseStatusCloudClient() {
   if (!isReleaseStatusCloudReady) {

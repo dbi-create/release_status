@@ -43,6 +43,58 @@ void main() {
     test('does not treat aliases as proof of availability', () {
       expect(PlatformAliases.referToSameService('Relay', 'Amazon'), isFalse);
     });
+
+    test('merges a nickname with a TMDb listing when the URL is the same', () {
+      expect(
+        PlatformAliases.sameChannel(
+          leftName: 'My Stream',
+          leftUrl: 'https://watch.plex.tv/show/harbor-light',
+          rightName: 'Plex',
+          rightUrl: 'https://www.justwatch.com/us/tv-show/harbor-light',
+        ),
+        isTrue,
+      );
+      expect(
+        PlatformAliases.sameChannel(
+          leftName: 'Shopping Channel',
+          leftUrl: 'https://www.amazon.com/gp/video/detail/foo',
+          rightName: 'Amazon Prime Video',
+          rightUrl: 'https://www.justwatch.com/us/movie/foo',
+        ),
+        isTrue,
+      );
+      expect(
+        PlatformAliases.sameChannel(
+          leftName: 'House Channel',
+          leftUrl: 'https://stream.example.invalid/title/1',
+          rightName: 'FooFlix',
+          rightUrl: 'https://stream.example.invalid/title/1',
+        ),
+        isTrue,
+      );
+    });
+
+    test('does not treat a shared JustWatch page as a unique channel', () {
+      expect(
+        PlatformAliases.sameChannel(
+          leftName: 'Netflix',
+          leftUrl: 'https://www.justwatch.com/us/tv-show/stranger-things',
+          rightName: 'Hulu',
+          rightUrl: 'https://www.justwatch.com/us/tv-show/stranger-things',
+        ),
+        isFalse,
+      );
+    });
+
+    test('keeps a storefront URL instead of the shared JustWatch link', () {
+      expect(
+        PlatformAliases.preferSpecificListingUrl(
+          'https://watch.plex.tv/show/harbor-light',
+          'https://www.justwatch.com/us/tv-show/harbor-light',
+        ),
+        'https://watch.plex.tv/show/harbor-light',
+      );
+    });
   });
 
   group('title matching', () {
